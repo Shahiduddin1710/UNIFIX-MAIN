@@ -1,134 +1,195 @@
-# 🔧 UNIFIX — Campus Complaint Management System
+# UNIFIX — Campus Complaint Management System
 
-A mobile-based complaint management system for VCET college. Students and teachers can submit complaints, maintenance staff can accept and resolve them, and admins can manage the entire system.
+A full-stack campus management system for handling complaints, maintenance workflows, and lost & found operations within a college environment.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 UNIFIX-MAIN/
-├── frontend/        # React Native + Expo Router (Mobile App)
-├── backend/         # Node.js + Express (REST API)
-└── admin/           # React + Vite (Admin Web Panel)
+├── frontend/        # React Native (Expo) Mobile App
+│   ├── app/
+│   ├── components/
+│   ├── constants/
+│   ├── firebase/
+│   ├── hooks/
+│   ├── services/
+│   └── assets/
+│
+├── backend/         # Node.js + Express API
+│   ├── config/
+│   ├── constants/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── routes/
+│   ├── services/
+│   ├── utils/
+│   ├── validators/
+│   └── server.js
+│
+├── admin/           # React Admin Panel
+│   ├── src/
+│   │   ├── pages/
+│   │   ├── services/
+│   │   └── components/
+│   └── .env
+│
+└── README.md
 ```
 
 ---
 
-## ⚙️ Prerequisites
+## Features
 
-Make sure you have these installed on your laptop:
+### Authentication
 
-| Tool | Version | Download |
-|------|---------|----------|
-| Node.js | v18 or above | https://nodejs.org |
-| npm | comes with Node.js | — |
-| Git | latest | https://git-scm.com |
-| Expo Go App | latest | Play Store / App Store |
+* Firebase Authentication (Email/Password)
+* OTP-based signup verification
+* Password reset with OTP
+* Secure token-based API access
+
+### Complaint System
+
+* Submit complaints with category and location
+* Auto-assignment to staff
+* Status tracking (pending, active, completed, rejected)
+* Complaint rating system
+
+### Lost & Found
+
+* Post found items with image upload (Cloudinary)
+* Categorization and descriptions
+* Item feed for all users
+* Handover tracking
+
+### Admin Panel
+
+* JWT-based admin authentication
+* Staff approval/rejection
+* Complaint monitoring
+* ID card request management
+* Account deletion handling
+* Security issue resolution
+
+### Security
+
+* Firebase Admin SDK (backend verification)
+* Rate limiting (API protection)
+* Input validation (express-validator)
+* Centralized error handling
 
 ---
 
-## 🚀 Getting Started
+## Tech Stack
 
-### Step 1 — Clone the Repository
+| Layer        | Technology                      |
+| ------------ | ------------------------------- |
+| Mobile App   | React Native (Expo), TypeScript |
+| Backend      | Node.js, Express                |
+| Database     | Firebase Firestore              |
+| Auth         | Firebase Authentication         |
+| Admin Panel  | React                           |
+| Image Upload | Cloudinary                      |
+| Email        | Nodemailer (Gmail SMTP)         |
+
+---
+
+## Setup Instructions
+
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/Shahiduddin1710/UNIFIX-MAIN.git
 cd UNIFIX-MAIN
 ```
 
-### Step 2 — Install all packages
+---
 
-Open **3 separate terminals** and run `npm install` in each folder:
+### 2. Install Dependencies
 
 ```bash
-# Terminal 1
-cd frontend
-npm install
-
-# Terminal 2
-cd backend
-npm install
-
-# Terminal 3
-cd admin
-npm install
+cd frontend && npm install
+cd ../backend && npm install
+cd ../admin && npm install
 ```
 
 ---
 
-## 🔁 Change the Backend IP Address
+### 3. Environment Variables
 
-This is the **most important step**. You must update the IP address in these files:
+#### Frontend (.env)
 
+```env
+EXPO_PUBLIC_BASE_URL=http://YOUR_IP:3000
 ```
-frontend/app/index.tsx
-frontend/app/staff-dashboard.tsx
-frontend/app/submit-complaint.tsx
-frontend/app/my-complaints.tsx
-frontend/app/complete-profile.tsx
-admin/src/pages/Login.jsx
-admin/src/pages/Dashboard.jsx
-admin/src/pages/StaffDetail.jsx
-```
-
-In each file, find this line:
-
-```js
-const BACKEND_URL = "http://YOUR_IP_ADDRESS:3000";
-```
-
-Replace `YOUR_IP_ADDRESS` with your actual laptop IP address:
-
-```js
-const BACKEND_URL = "http://192.168.1.XXX:3000";
-```
-
-> **How to find your IP address:**
-> - Windows: Open CMD → type `ipconfig` → look for **IPv4 Address**
-> - Make sure your phone and laptop are on the **same WiFi network**
-
-> **Fastest way — change all files at once in VS Code:**
-> Press `Ctrl + Shift + H` → Find: `YOUR_IP_ADDRESS` (whatever IP is currently in the files) → Replace with your IP → Click **Replace All** ✅
 
 ---
 
-## 📱 Frontend Setup (React Native App)
+#### Admin (.env)
 
-```bash
-cd frontend
-npx expo start
+```env
+REACT_APP_API_URL=http://YOUR_IP:3000
 ```
-
-Then scan the QR code with **Expo Go** app on your phone.
 
 ---
 
+#### Backend (.env)
 
-### Add Firebase Service Account
+```env
+PORT=3000
 
-1. Go to **Firebase Console → Project Settings → Service Accounts**
-2. Click **Generate new private key**
-3. Download the JSON file
-4. Rename it to `serviceAccountKey.json`
-5. Place it inside the `backend/` folder
+JWT_SECRET=your_jwt_secret
 
-### Run the Backend
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+
+FIREBASE_DATABASE_URL=your_database_url
+FIREBASE_STORAGE_BUCKET=your_bucket_url
+
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_UPLOAD_PRESET=your_upload_preset
+```
+
+---
+
+## Firebase Setup
+
+1. Create Firebase project
+2. Enable:
+
+   * Authentication (Email/Password)
+   * Firestore Database
+3. Generate Service Account Key
+4. Place file in:
+
+```
+backend/serviceAccountKey.json
+```
+
+---
+
+## Run the Project
+
+### Backend
 
 ```bash
 cd backend
 node server.js
 ```
 
-You should see:
-```
-Server running on port 3000
-Firebase connected ✅
+---
+
+### Frontend
+
+```bash
+cd frontend
+npx expo start --clear
 ```
 
 ---
 
-## 🌐 Admin Panel Setup (React + Vite)
+### Admin Panel
 
 ```bash
 cd admin
@@ -137,86 +198,42 @@ npm run dev
 
 ---
 
-## 🔥 Firebase Setup
+## Important Notes
 
-This project uses Firebase. You need to create your own Firebase project OR get the config from the original developer.
-
-### If setting up fresh:
-
-1. Go to **https://firebase.google.com** and create a new project
-2. Enable **Authentication** → Email/Password
-3. Enable **Firestore Database**
-4. Go to **Project Settings → General** → copy the Firebase config
-5. Replace the config in `frontend/firebase/firebaseConfig.ts`
-
-### Required Firestore Indexes
-
-Create these composite indexes in Firebase Console → Firestore → Indexes:
-
-| Collection | Fields | Order |
-|------------|--------|-------|
-| complaints | submittedBy (Asc), createdAt (Desc) | — |
-| complaints | assignableTo (Array), status (Asc), createdAt (Desc) | — |
-| complaints | assignedTo (Asc), createdAt (Desc) | — |
+* Ensure mobile and backend are on the same network
+* Update IP address in `.env` when WiFi changes
+* Restart Expo after changing `.env`
 
 ---
 
-## 📧 Gmail Setup (for OTP emails)
+## API Flow
 
-1. Go to your Google Account → **Security → 2-Step Verification** → enable it
-2. Then go to **App Passwords** → create a new app password
-3. Copy the 16-character password
-4. Paste it in `.env` as `EMAIL_PASSWORD`
-
----
-
-## 👥 User Roles
-
-| Role | Access |
-|------|--------|
-| `student` | Submit complaints, track status |
-| `teacher` | Submit complaints, track status |
-| `staff` | View assigned complaints, accept/reject/complete |
-| `admin` | Approve/reject staff, view all complaints |
-
-> **Note:** Staff accounts require admin approval before they can login.
-
----
-
-## 🗂️ Running All 3 Together
-
-Open **3 separate terminals**:
-
-```bash
-# Terminal 1 - Backend
-cd backend
-node server.js
-
-# Terminal 2 - Frontend
-cd frontend
-npx expo start
-
-# Terminal 3 - Admin Panel
-cd admin
-npm run dev
+```
+Mobile App / Admin Panel
+        ↓
+   API Layer (fetch / axios)
+        ↓
+   Express Routes
+        ↓
+   Controllers
+        ↓
+   Firebase (Auth + Firestore)
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## Roles
 
-| Layer | Technology |
-|-------|-----------|
-| Mobile App | React Native, Expo Router |
-| Backend | Node.js, Express.js |
-| Database | Firebase Firestore |
-| Authentication | Firebase Auth |
-| Admin Panel | React, Vite |
-| Email | Nodemailer + Gmail SMTP |
+| Role    | Access                     |
+| ------- | -------------------------- |
+| student | Submit & track complaints  |
+| teacher | Submit & track complaints  |
+| staff   | Manage assigned complaints |
+| admin   | Full system control        |
 
 ---
 
-## 📞 Contact
+## Author
 
-For any issues, contact the developer:
-**Shahiduddin** — shahiduddin153@gmail.com
+Shahiduddin
+Email: [shahiduddin153@gmail.com](mailto:shahiduddin153@gmail.com)
