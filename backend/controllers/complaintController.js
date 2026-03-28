@@ -1,6 +1,6 @@
 const admin = require('../config/firebase');
 const { sendSuccess, sendError } = require('../utils/response');
-const { sendPushNotification, getTokensByDesignation } = require('../services/notificationService');
+const { sendPushNotification, getTokensByDesignation, getTokenForUid } = require('../services/notificationService');
 
 const CATEGORY_DESIGNATION_MAP = {
   electrical: 'Electrician',
@@ -10,6 +10,7 @@ const CATEGORY_DESIGNATION_MAP = {
   technician: 'Technician',
   safety: 'Safety Officer',
   washroom: 'Cleaner',
+  others: null,
 };
 
 const generateTicketId = () => {
@@ -36,6 +37,16 @@ const getSeconds = (ts) => {
   return null;
 };
 
+const notifyReporter = async (reporterUid, title, body, data) => {
+  const tokens = await getTokenForUid(admin.firestore(), reporterUid);
+  if (tokens.length > 0) sendPushNotification(tokens, title, body, data);
+};
+
+const notifyStaffMember = async (staffUid, title, body, data) => {
+  const tokens = await getTokenForUid(admin.firestore(), staffUid);
+  if (tokens.length > 0) sendPushNotification(tokens, title, body, data);
+};
+
 const submit = async (req, res) => {
   try {
     const { category, subIssue, customIssue, description, building, roomDetail, photoUrl } = req.body;
@@ -50,11 +61,13 @@ const submit = async (req, res) => {
     const ticketId = generateTicketId();
     let assignableTo = [];
     let requiredDesignation = null;
+    let notifyGender = null;
 
     if (category === 'washroom') {
       const userGender = userData.gender || null;
       if (!userGender) return sendError(res, 'Your profile does not have a gender set. Please update your profile first.', 400);
-      const staffSnapshot = await admin.firestore().collection('users')
+      const staffSnapshot = await admin.firestore()
+        .collection('users')
         .where('role', '==', 'staff')
         .where('designation', '==', 'Cleaner')
         .where('verificationStatus', '==', 'approved')
@@ -62,10 +75,12 @@ const submit = async (req, res) => {
         .get();
       assignableTo = staffSnapshot.docs.map(doc => doc.id);
       requiredDesignation = 'Cleaner';
+      notifyGender = userGender;
     } else {
       requiredDesignation = CATEGORY_DESIGNATION_MAP[category] || null;
       if (requiredDesignation) {
-        const staffSnapshot = await admin.firestore().collection('users')
+        const staffSnapshot = await admin.firestore()
+          .collection('users')
           .where('role', '==', 'staff')
           .where('designation', '==', requiredDesignation)
           .where('verificationStatus', '==', 'approved')
@@ -95,6 +110,7 @@ const submit = async (req, res) => {
       assignedToName: null,
       assignedToPhone: null,
       status: 'pending',
+      queueStatus: 'waiting_for_staff',
       rating: null,
       ratingComment: null,
       ratedAt: null,
@@ -106,17 +122,22 @@ const submit = async (req, res) => {
     const docRef = await admin.firestore().collection('complaints').add(complaintData);
 
     if (assignableTo.length > 0 && requiredDesignation) {
-      const staffTokens = await getTokensByDesignation(admin.firestore(), requiredDesignation, uid);
+      const staffTokens = await getTokensByDesignation(admin.firestore(), requiredDesignation, uid, notifyGender);
       const issueTitle = subIssue || customIssue || 'New Issue';
-      const notifBody = `${userData.fullName || 'Someone'} reported: ${issueTitle} at ${building}`;
-      sendPushNotification(staffTokens, 'New Complaint Assigned', notifBody, {
+      sendPushNotification(staffTokens, 'New Complaint Assigned', `${userData.fullName || 'Someone'} reported: ${issueTitle} at ${building}`, {
         type: 'new_complaint',
         complaintId: docRef.id,
         ticketId,
       });
     }
 
-    sendSuccess(res, { ticketId, complaintId: docRef.id, message: 'Complaint submitted successfully' });
+    sendSuccess(res, {
+      ticketId,
+      complaintId: docRef.id,
+      message: 'Complaint submitted successfully',
+      queueStatus: 'waiting_for_staff',
+      assignableStaffCount: assignableTo.length,
+    });
   } catch (error) {
     sendError(res, error.message);
   }
@@ -143,25 +164,26 @@ const accept = async (req, res) => {
 
     await complaintRef.update({
       status: 'assigned',
+      queueStatus: 'assigned',
       assignedTo: uid,
       assignedToName: staffData.fullName || '',
       assignedToPhone: staffData.phone || '',
       updatedAt: admin.firestore.Timestamp.now(),
     });
 
-    const reporterDoc = await admin.firestore().collection('users').doc(complaint.submittedBy).get();
-    if (reporterDoc.exists) {
-      const reporterData = reporterDoc.data();
-      if (reporterData.expoPushToken) {
-        const issueTitle = complaint.subIssue || complaint.customIssue || 'Your complaint';
-        sendPushNotification(
-          [reporterData.expoPushToken],
-          'Complaint Accepted',
-          `${staffData.fullName || 'A staff member'} has accepted your complaint: ${issueTitle}`,
-          { type: 'complaint_accepted', complaintId, ticketId: complaint.ticketId }
-        );
-      }
-    }
+    const issueTitle = complaint.subIssue || complaint.customIssue || 'Your complaint';
+
+    await notifyReporter(complaint.submittedBy, 'Complaint Accepted', `${staffData.fullName || 'A staff member'} has accepted your complaint: ${issueTitle}`, {
+      type: 'complaint_accepted',
+      complaintId,
+      ticketId: complaint.ticketId,
+    });
+
+    await notifyStaffMember(uid, 'Complaint Accepted', `You accepted: ${issueTitle} at ${complaint.building}`, {
+      type: 'complaint_accepted',
+      complaintId,
+      ticketId: complaint.ticketId,
+    });
 
     sendSuccess(res, { message: 'Complaint accepted successfully' });
   } catch (error) {
@@ -185,27 +207,41 @@ const updateStatus = async (req, res) => {
     const complaint = complaintDoc.data();
     if (complaint.assignedTo !== uid) return sendError(res, 'You are not assigned to this complaint', 403);
 
-    const updateData = { status, updatedAt: admin.firestore.Timestamp.now() };
+    const updateData = {
+      status,
+      queueStatus: status,
+      updatedAt: admin.firestore.Timestamp.now(),
+    };
     if (status === 'completed') updateData.completedAt = admin.firestore.Timestamp.now();
 
     await complaintRef.update(updateData);
 
-    const reporterDoc = await admin.firestore().collection('users').doc(complaint.submittedBy).get();
-    if (reporterDoc.exists) {
-      const reporterData = reporterDoc.data();
-      if (reporterData.expoPushToken) {
-        const issueTitle = complaint.subIssue || complaint.customIssue || 'Your complaint';
-        const notifTitle = status === 'completed' ? 'Complaint Resolved' : 'Work In Progress';
-        const notifBody = status === 'completed'
-          ? `Your complaint "${issueTitle}" has been resolved. Please rate the work.`
-          : `Work has started on your complaint: ${issueTitle}`;
-        sendPushNotification(
-          [reporterData.expoPushToken],
-          notifTitle,
-          notifBody,
-          { type: `complaint_${status}`, complaintId, ticketId: complaint.ticketId }
-        );
-      }
+    const issueTitle = complaint.subIssue || complaint.customIssue || 'Your complaint';
+
+    if (status === 'in_progress') {
+      await notifyReporter(complaint.submittedBy, 'Work In Progress', `Work has started on your complaint: ${issueTitle}`, {
+        type: 'complaint_in_progress',
+        complaintId,
+        ticketId: complaint.ticketId,
+      });
+      await notifyStaffMember(uid, 'Status Updated', `You marked "${issueTitle}" as In Progress`, {
+        type: 'complaint_in_progress',
+        complaintId,
+        ticketId: complaint.ticketId,
+      });
+    }
+
+    if (status === 'completed') {
+      await notifyReporter(complaint.submittedBy, 'Complaint Resolved', `Your complaint "${issueTitle}" has been resolved. Please rate the work.`, {
+        type: 'complaint_completed',
+        complaintId,
+        ticketId: complaint.ticketId,
+      });
+      await notifyStaffMember(uid, 'Task Completed', `You completed: ${issueTitle}`, {
+        type: 'complaint_completed',
+        complaintId,
+        ticketId: complaint.ticketId,
+      });
     }
 
     sendSuccess(res, { message: `Status updated to ${status}` });
@@ -235,27 +271,27 @@ const reject = async (req, res) => {
     const rejectedBy = complaint.rejectedBy || [];
     rejectedBy.push({ uid, name: staffName, reason, rejectedAt: new Date().toISOString() });
 
-    const updateData = { assignableTo: newAssignableTo, rejectedBy, updatedAt: admin.firestore.Timestamp.now() };
+    const updateData = {
+      assignableTo: newAssignableTo,
+      rejectedBy,
+      updatedAt: admin.firestore.Timestamp.now(),
+    };
+
     if (newAssignableTo.length === 0) {
       updateData.status = 'rejected';
+      updateData.queueStatus = 'rejected';
       updateData.rejectionReason = reason;
 
-      const reporterDoc = await admin.firestore().collection('users').doc(complaint.submittedBy).get();
-      if (reporterDoc.exists) {
-        const reporterData = reporterDoc.data();
-        if (reporterData.expoPushToken) {
-          const issueTitle = complaint.subIssue || complaint.customIssue || 'Your complaint';
-          sendPushNotification(
-            [reporterData.expoPushToken],
-            'Complaint Rejected',
-            `Unfortunately your complaint "${issueTitle}" could not be assigned to any staff.`,
-            { type: 'complaint_rejected', complaintId, ticketId: complaint.ticketId }
-          );
-        }
-      }
+      const issueTitle = complaint.subIssue || complaint.customIssue || 'Your complaint';
+      await notifyReporter(complaint.submittedBy, 'Complaint Rejected', `Unfortunately your complaint "${issueTitle}" could not be assigned to any staff.`, {
+        type: 'complaint_rejected',
+        complaintId,
+        ticketId: complaint.ticketId,
+      });
     }
 
     await ref.update(updateData);
+
     sendSuccess(res, {
       message: newAssignableTo.length > 0
         ? 'You rejected this complaint. Other staff can still accept it.'
@@ -300,15 +336,11 @@ const rate = async (req, res) => {
         avgRating: Math.round((newTotal / newCount) * 10) / 10,
       });
 
-      if (staffData.expoPushToken) {
-        const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
-        sendPushNotification(
-          [staffData.expoPushToken],
-          'New Rating Received',
-          `You received a ${rating}/5 rating ${stars} for your work.`,
-          { type: 'new_rating', complaintId }
-        );
-      }
+      const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+      await notifyStaffMember(complaint.assignedTo, 'New Rating Received', `You received ${rating}/5 ${stars} for: ${complaint.subIssue || complaint.customIssue || 'a complaint'}`, {
+        type: 'new_rating',
+        complaintId,
+      });
     }
 
     sendSuccess(res, { message: 'Rating submitted successfully.' });
@@ -320,7 +352,8 @@ const rate = async (req, res) => {
 const myComplaints = async (req, res) => {
   try {
     const uid = req.user.uid;
-    const snapshot = await admin.firestore().collection('complaints')
+    const snapshot = await admin.firestore()
+      .collection('complaints')
       .where('submittedBy', '==', uid)
       .orderBy('createdAt', 'desc')
       .get();
@@ -329,9 +362,7 @@ const myComplaints = async (req, res) => {
       snapshot.docs.map(async (doc) => {
         const data = doc.data();
         let assignedToPhone = data.assignedToPhone || '';
-        if (data.assignedTo && !assignedToPhone) {
-          assignedToPhone = await getPhoneForUid(data.assignedTo);
-        }
+        if (data.assignedTo && !assignedToPhone) assignedToPhone = await getPhoneForUid(data.assignedTo);
         return { id: doc.id, ...data, assignedToPhone };
       })
     );
@@ -346,15 +377,26 @@ const staffComplaints = async (req, res) => {
   try {
     const uid = req.user.uid;
 
-    const [pendingSnapshot, assignedSnapshot, allRejectedSnapshot, myRejectedPendingSnapshot] = await Promise.all([
-      admin.firestore().collection('complaints').where('assignableTo', 'array-contains', uid).where('status', '==', 'pending').orderBy('createdAt', 'desc').get(),
-      admin.firestore().collection('complaints').where('assignedTo', '==', uid).orderBy('createdAt', 'desc').get(),
-      admin.firestore().collection('complaints').where('status', '==', 'rejected').orderBy('createdAt', 'desc').get(),
-      admin.firestore().collection('complaints').orderBy('createdAt', 'desc').get(),
+    const [pendingSnapshot, assignedSnapshot] = await Promise.all([
+      admin.firestore().collection('complaints')
+        .where('assignableTo', 'array-contains', uid)
+        .where('status', '==', 'pending')
+        .orderBy('createdAt', 'desc')
+        .get(),
+      admin.firestore().collection('complaints')
+        .where('assignedTo', '==', uid)
+        .orderBy('createdAt', 'desc')
+        .get(),
     ]);
 
-    const allDocs = [...pendingSnapshot.docs, ...assignedSnapshot.docs, ...allRejectedSnapshot.docs, ...myRejectedPendingSnapshot.docs];
+    const rejectedSnapshot = await admin.firestore()
+      .collection('complaints')
+      .where('status', '==', 'rejected')
+      .orderBy('createdAt', 'desc')
+      .get();
+
     const seenIds = new Set();
+    const allDocs = [...pendingSnapshot.docs, ...assignedSnapshot.docs, ...rejectedSnapshot.docs];
     const uniqueDocs = allDocs.filter(doc => {
       if (seenIds.has(doc.id)) return false;
       seenIds.add(doc.id);
@@ -393,7 +435,9 @@ const staffComplaints = async (req, res) => {
     const staffSnap = await admin.firestore().collection('users').doc(uid).get();
     const staffData = staffSnap.exists ? staffSnap.data() : {};
 
-    const rejected = uniqueDocs.map(attachPhone).filter(c => Array.isArray(c.rejectedBy) && c.rejectedBy.some(r => r.uid === uid));
+    const rejected = uniqueDocs
+      .map(attachPhone)
+      .filter(c => Array.isArray(c.rejectedBy) && c.rejectedBy.some(r => r.uid === uid));
 
     sendSuccess(res, {
       pending,
@@ -411,7 +455,10 @@ const staffComplaints = async (req, res) => {
 
 const allComplaints = async (req, res) => {
   try {
-    const snapshot = await admin.firestore().collection('complaints').orderBy('createdAt', 'desc').get();
+    const snapshot = await admin.firestore()
+      .collection('complaints')
+      .orderBy('createdAt', 'desc')
+      .get();
     const complaints = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     sendSuccess(res, { complaints });
   } catch (error) {

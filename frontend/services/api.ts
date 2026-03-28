@@ -53,13 +53,7 @@ export const authAPI = {
   signup: (fullName: string, email: string, password: string, role: string) =>
     post("/auth/signup", { fullName, email, password, role }, false),
 
-  verifyOtp: (
-    email: string,
-    otp: string,
-    fullName: string,
-    password: string,
-    role: string
-  ) =>
+  verifyOtp: (email: string, otp: string, fullName: string, password: string, role: string) =>
     post("/auth/verify-otp", { email, otp, fullName, password, role }, false),
 
   resendOtp: (email: string, fullName: string, type: string) =>
@@ -94,6 +88,9 @@ export const authAPI = {
     post("/auth/request-idcard-update", { newIdCardUrl, newIdCardName }),
 
   myProfile: () => get("/auth/my-profile"),
+
+  savePushToken: (expoPushToken: string) =>
+    post("/auth/save-push-token", { expoPushToken }),
 };
 
 export const complaintsAPI = {
