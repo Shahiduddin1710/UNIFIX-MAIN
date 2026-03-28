@@ -4,10 +4,11 @@ import {
   KeyboardAvoidingView, Platform, Dimensions, StatusBar, Linking, Alert,
 } from "react-native";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, updateDoc, collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import * as ImagePicker from "expo-image-picker";
+import * as Notifications from "expo-notifications";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "../firebase/firebaseConfig";
@@ -161,6 +162,7 @@ const iv = StyleSheet.create({
 
 export default function StaffDashboardScreen() {
   const insets = useSafeAreaInsets();
+  const { openComplaintId, openTab } = useLocalSearchParams<{ openComplaintId?: string; openTab?: string }>();
 
   const [allComplaints, setAllComplaints]   = useState<Complaint[]>([]);
   const [feedItems, setFeedItems]           = useState<LostItem[]>([]);
@@ -213,6 +215,7 @@ export default function StaffDashboardScreen() {
   const toastAnim  = useRef(new Animated.Value(0)).current;
   const toastTimer = useRef<any>(null);
   const unsubRef   = useRef<(() => void) | null>(null);
+  const pendingOpenComplaintId = useRef<string | null>(null);
 
   const SECURITY_ISSUE_TYPES = [
     "Unauthorized Access", "Account Compromise", "Data Privacy Concern",
@@ -232,15 +235,8 @@ export default function StaffDashboardScreen() {
   const subscribeToComplaints = useCallback((uid: string) => {
     if (unsubRef.current) unsubRef.current();
 
-    const pendingQ = query(
-      collection(db, "complaints"),
-      where("assignableTo", "array-contains", uid),
-      where("status", "==", "pending")
-    );
-    const assignedQ = query(
-      collection(db, "complaints"),
-      where("assignedTo", "==", uid)
-    );
+    const pendingQ = query(collection(db, "complaints"), where("assignableTo", "array-contains", uid), where("status", "==", "pending"));
+    const assignedQ = query(collection(db, "complaints"), where("assignedTo", "==", uid));
 
     const pendingUnsub = onSnapshot(pendingQ, () => refetchAll(uid));
     const assignedUnsub = onSnapshot(assignedQ, () => refetchAll(uid));
@@ -253,11 +249,7 @@ export default function StaffDashboardScreen() {
       }
     });
 
-    unsubRef.current = () => {
-      pendingUnsub();
-      assignedUnsub();
-      userUnsub();
-    };
+    unsubRef.current = () => { pendingUnsub(); assignedUnsub(); userUnsub(); };
   }, []);
 
   const refetchAll = useCallback(async (uid: string) => {
@@ -286,6 +278,15 @@ export default function StaffDashboardScreen() {
     } catch {}
   }, []);
 
+  const registerPushToken = useCallback(async () => {
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== "granted") return;
+      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      if (token) await authAPI.savePushToken(token);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.replace("/login" as any); return; }
@@ -294,12 +295,37 @@ export default function StaffDashboardScreen() {
       if (snap.exists()) setStaffData(snap.data() as StaffData);
       subscribeToComplaints(u.uid);
       fetchLostFound();
+      registerPushToken();
     });
     return () => {
       unsub();
       if (unsubRef.current) unsubRef.current();
     };
   }, []);
+
+  useEffect(() => {
+    if (openComplaintId) {
+      pendingOpenComplaintId.current = openComplaintId as string;
+    }
+  }, [openComplaintId]);
+
+  useEffect(() => {
+    if (pendingOpenComplaintId.current && allComplaints.length > 0) {
+      const found = allComplaints.find(c => c.id === pendingOpenComplaintId.current);
+      if (found) {
+        setActiveTab("tasks");
+        setSelectedComplaint(found);
+        setDetailVisible(true);
+        pendingOpenComplaintId.current = null;
+      }
+    }
+  }, [allComplaints]);
+
+  useEffect(() => {
+    if (openTab === "lostfound") {
+      setActiveTab("lostfound");
+    }
+  }, [openTab]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -689,6 +715,7 @@ export default function StaffDashboardScreen() {
           <View style={s.formField}><Text style={s.formLabel}>Email</Text><View style={s.formInputReadOnly}><Text style={s.formInputReadOnlyText} numberOfLines={1} ellipsizeMode="tail">{staffData?.email || "—"}</Text><Text style={s.readOnlyTag}>Read only</Text></View></View>
           <View style={s.formField}><Text style={s.formLabel}>Gender</Text><View style={s.formInputReadOnly}><Text style={s.formInputReadOnlyText} numberOfLines={1} ellipsizeMode="tail">{staffData?.gender || "Not set"}</Text><Text style={s.readOnlyTag}>Read only</Text></View></View>
           <View style={s.formField}><Text style={s.formLabel}>Role</Text><View style={s.formInputReadOnly}><Text style={s.formInputReadOnlyText} numberOfLines={1} ellipsizeMode="tail">Maintenance Staff</Text><Text style={s.readOnlyTag}>Read only</Text></View></View>
+          <View style={s.formField}><Text style={s.formLabel}>Designation</Text><View style={s.formInputReadOnly}><Text style={s.formInputReadOnlyText} numberOfLines={1} ellipsizeMode="tail">{staffData?.designation || "—"}</Text><Text style={s.readOnlyTag}>Read only</Text></View></View>
           <View style={s.formField}><Text style={s.formLabel}>Staff ID</Text><View style={s.formInputReadOnly}><Text style={s.formInputReadOnlyText} numberOfLines={1} ellipsizeMode="tail">{staffData?.employeeId || "—"}</Text><Text style={s.readOnlyTag}>Read only</Text></View></View>
           {profileError ? <Text style={s.formError}>{profileError}</Text> : null}
           {profileSuccess ? <Text style={s.formSuccess}>{profileSuccess}</Text> : null}
@@ -812,7 +839,6 @@ export default function StaffDashboardScreen() {
           </View>
           <View style={s.sectionHeader}>
             <Text style={s.sectionTitle}>Active Tasks</Text>
-            <TouchableOpacity><Text style={s.viewAll}>View All</Text></TouchableOpacity>
           </View>
           {allTasks.length === 0 ? (
             <View style={s.emptyState}>
@@ -1043,7 +1069,6 @@ const s = StyleSheet.create({
   statSub: { fontSize: 11, fontWeight: "600" },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
-  viewAll: { fontSize: 13, color: "#16a34a", fontWeight: "600" },
   emptyState: { alignItems: "center", paddingTop: 60 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#f0fdf4", borderWidth: 1.5, borderColor: "#bbf7d0", alignItems: "center", justifyContent: "center", marginBottom: 12 },
   emptyText: { fontSize: 15, color: "#94a3b8", fontWeight: "600" },
@@ -1227,4 +1252,4 @@ const s = StyleSheet.create({
   toastError:   { backgroundColor: "#dc2626" },
   toastInfo:    { backgroundColor: "#1e40af" },
   toastText:    { fontSize: 14, fontWeight: "600", color: "#ffffff", flex: 1, lineHeight: 20 },
-});
+}); 

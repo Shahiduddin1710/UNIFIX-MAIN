@@ -9,6 +9,7 @@ const post = async (req, res) => {
 
     const userDoc = await admin.firestore().collection('users').doc(uid).get();
     if (!userDoc.exists) return sendError(res, 'User not found', 404);
+
     const userData = userDoc.data();
 
     const docRef = await admin.firestore().collection('lostFound').add({
@@ -30,12 +31,12 @@ const post = async (req, res) => {
       updatedAt: admin.firestore.Timestamp.now(),
     });
 
-    const allTokens = await getAllUserTokens(admin.firestore(), uid);
-    const roleLabel = userData.role === 'student' ? 'Student' : userData.role === 'teacher' ? 'Teacher' : 'Staff';
-    sendPushNotification(
-      allTokens,
+    const tokens = await getAllUserTokens(admin.firestore(), uid);
+
+    await sendPushNotification(
+      tokens,
       'Lost & Found',
-      `${userData.fullName || roleLabel} posted a found item: ${itemName.trim()}`,
+      `${userData.fullName || 'Someone'} posted a found item: ${itemName.trim()} — Collect from ${collectLocation.trim()}`,
       { type: 'new_lost_found', itemId: docRef.id }
     );
 
@@ -48,6 +49,7 @@ const post = async (req, res) => {
 const feed = async (req, res) => {
   try {
     const uid = req.user.uid;
+
     const snapshot = await admin.firestore()
       .collection('lostFound')
       .where('status', '==', 'available')
@@ -75,9 +77,11 @@ const handover = async (req, res) => {
 
     const ref = admin.firestore().collection('lostFound').doc(itemId);
     const snap = await ref.get();
+
     if (!snap.exists) return sendError(res, 'Item not found.', 404);
 
     const item = snap.data();
+
     if (item.postedBy !== uid) return sendError(res, 'Only the person who posted this item can mark it as handed over.', 403);
     if (item.status !== 'available') return sendError(res, 'Item already handed over.', 400);
 
@@ -97,13 +101,14 @@ const handover = async (req, res) => {
 const myPosts = async (req, res) => {
   try {
     const uid = req.user.uid;
+
     const snapshot = await admin.firestore()
       .collection('lostFound')
       .where('postedBy', '==', uid)
       .get();
 
     const items = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .map(doc => ({ id: doc.id, ...doc.data(), isMyPost: true }))
       .sort((a, b) => {
         const aTime = a.createdAt?._seconds ?? a.createdAt?.seconds ?? 0;
         const bTime = b.createdAt?._seconds ?? b.createdAt?.seconds ?? 0;

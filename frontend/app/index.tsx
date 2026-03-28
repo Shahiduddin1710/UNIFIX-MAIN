@@ -6,6 +6,7 @@ import {
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as Notifications from "expo-notifications";
 import { doc, getDoc, updateDoc, collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,8 +47,8 @@ type Complaint = {
   id: string; ticketId: string; category: string;
   subIssue: string | null; customIssue: string | null;
   description: string; building: string; roomDetail: string;
-  status: string; createdAt: any; assignedToName: string | null;
-  assignedToPhone: string | null;
+  status: string; queueStatus?: string; createdAt: any;
+  assignedToName: string | null; assignedToPhone: string | null;
   photoUrl?: string | null; rating?: number | null;
   ratingComment?: string | null; ratedAt?: any;
 };
@@ -180,19 +181,14 @@ export default function DashboardScreen() {
   ];
 
   const subscribeToComplaints = useCallback((uid: string) => {
-    if (unsubComplaintsRef.current) {
-      unsubComplaintsRef.current();
-    }
+    if (unsubComplaintsRef.current) unsubComplaintsRef.current();
     const q = query(
       collection(db, "complaints"),
       where("submittedBy", "==", uid),
       orderBy("createdAt", "desc")
     );
     const unsub = onSnapshot(q, (snapshot) => {
-      const data: Complaint[] = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as any),
-      }));
+      const data: Complaint[] = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
       setComplaints(data);
       setComplaintsLoading(false);
       setSelectedComplaint((prev) => {
@@ -200,19 +196,14 @@ export default function DashboardScreen() {
         const updated = data.find((c) => c.id === prev.id);
         return updated ?? prev;
       });
-    }, () => {
-      setComplaintsLoading(false);
-    });
+    }, () => { setComplaintsLoading(false); });
     unsubComplaintsRef.current = unsub;
   }, []);
 
   const fetchLostFound = useCallback(async () => {
     setLfLoading(true);
     try {
-      const [feedData, myData] = await Promise.all([
-        lostFoundAPI.feed(),
-        lostFoundAPI.myPosts(),
-      ]);
+      const [feedData, myData] = await Promise.all([lostFoundAPI.feed(), lostFoundAPI.myPosts()]);
       setFeedItems(feedData.items || []);
       setMyPosts(myData.items || []);
     } catch {} finally { setLfLoading(false); }
@@ -222,6 +213,15 @@ export default function DashboardScreen() {
     try {
       const data = await authAPI.myProfile();
       setHasPendingIdCard(data.hasPendingIdCardRequest || false);
+    } catch {}
+  }, []);
+
+  const registerPushToken = useCallback(async () => {
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== "granted") return;
+      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      if (token) await authAPI.savePushToken(token);
     } catch {}
   }, []);
 
@@ -235,6 +235,7 @@ export default function DashboardScreen() {
         tokenRef.current = await u.getIdToken();
         subscribeToComplaints(u.uid);
         await fetchProfile();
+        await registerPushToken();
       } catch {}
       finally { setLoading(false); }
     });
@@ -243,6 +244,29 @@ export default function DashboardScreen() {
       if (unsubComplaintsRef.current) unsubComplaintsRef.current();
     };
   }, []);
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as any;
+      const { type, complaintId, itemId } = data || {};
+      if (complaintId && (
+        type === "complaint_accepted" ||
+        type === "complaint_in_progress" ||
+        type === "complaint_completed" ||
+        type === "complaint_rejected" ||
+        type === "new_complaint" ||
+        type === "new_rating"
+      )) {
+        switchTab("complaints");
+        const found = complaints.find(c => c.id === complaintId);
+        if (found) { setSelectedComplaint(found); setTrackingVisible(true); }
+      }
+      if (itemId && (type === "new_lost_found" || type === "item_handover")) {
+        switchTab("lostfound");
+      }
+    });
+    return () => sub.remove();
+  }, [complaints]);
 
   const switchTab = useCallback((tab: TabType) => {
     setActiveTab(tab);
@@ -725,6 +749,12 @@ export default function DashboardScreen() {
                           <Text style={s.complaintTitle} numberOfLines={2}>{issueTitle}</Text>
                           <View style={s.complaintMetaRow}><Ionicons name="location-outline" size={12} color="#64748b" /><Text style={s.complaintMetaText}>{[complaint.building, complaint.roomDetail].filter(Boolean).join(", ")}</Text></View>
                           <View style={s.complaintMetaRow}><Ionicons name="calendar-outline" size={12} color="#94a3b8" /><Text style={s.complaintDate}>{formatDateShort(complaint.createdAt)}</Text></View>
+                          {complaint.status === "pending" && complaint.queueStatus === "waiting_for_staff" && (
+                            <View style={s.queueBanner}>
+                              <Ionicons name="time-outline" size={12} color="#7c3aed" style={{ marginRight: 4 }} />
+                              <Text style={s.queueBannerText}>Waiting for staff to be assigned</Text>
+                            </View>
+                          )}
                         </View>
                         {complaint.photoUrl ? (<Image source={{ uri: complaint.photoUrl }} style={s.complaintThumb} resizeMode="cover" />) : (<View style={[s.complaintThumb, s.complaintThumbEmpty]}><Ionicons name={catIcon} size={20} color="#94a3b8" /></View>)}
                       </View>
@@ -1021,6 +1051,8 @@ const s = StyleSheet.create({
   complaintDate: { fontSize: 12, color: "#94a3b8" },
   complaintThumb: { width: 72, height: 72, borderRadius: 10 },
   complaintThumbEmpty: { backgroundColor: "#f8fafc", borderWidth: 1.5, borderColor: "#e2e8f0", alignItems: "center", justifyContent: "center" },
+  queueBanner: { flexDirection: "row", alignItems: "center", backgroundColor: "#ede9fe", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginTop: 4, alignSelf: "flex-start" },
+  queueBannerText: { fontSize: 11, color: "#7c3aed", fontWeight: "600" },
   staffBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#eff6ff", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 12, borderWidth: 1, borderColor: "#bfdbfe" },
   staffLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   staffIconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#dbeafe", alignItems: "center", justifyContent: "center" },

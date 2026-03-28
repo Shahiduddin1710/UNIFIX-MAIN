@@ -211,8 +211,9 @@ const login = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+    const uid = req.user?.uid || req.uid;
 
-    const userDoc = await admin.firestore().collection('users').doc(req.uid).get();
+    const userDoc = await admin.firestore().collection('users').doc(uid).get();
     if (!userDoc.exists) return sendError(res, 'User not found', 404);
 
     const userEmail = userDoc.data().email;
@@ -226,7 +227,7 @@ const changePassword = async (req, res) => {
       return sendError(res, 'Current password is incorrect', 400);
     }
 
-    await admin.auth().updateUser(req.uid, { password: newPassword });
+    await admin.auth().updateUser(uid, { password: newPassword });
     sendSuccess(res, { message: 'Password changed successfully' });
   } catch (error) {
     sendError(res, error.message);
@@ -236,12 +237,13 @@ const changePassword = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { fullName, phone } = req.body;
+    const uid = req.user?.uid || req.uid;
     const updateData = {
       fullName: fullName.trim(),
       updatedAt: admin.firestore.Timestamp.now(),
     };
     if (phone !== undefined) updateData.phone = phone.trim();
-    await admin.firestore().collection('users').doc(req.uid).update(updateData);
+    await admin.firestore().collection('users').doc(uid).update(updateData);
     sendSuccess(res, { message: 'Profile updated successfully' });
   } catch (error) {
     sendError(res, error.message);
@@ -250,8 +252,9 @@ const updateProfile = async (req, res) => {
 
 const logoutAllDevices = async (req, res) => {
   try {
-    await admin.auth().revokeRefreshTokens(req.uid);
-    await admin.firestore().collection('users').doc(req.uid).update({
+    const uid = req.user?.uid || req.uid;
+    await admin.auth().revokeRefreshTokens(uid);
+    await admin.firestore().collection('users').doc(uid).update({
       tokensRevokedAt: admin.firestore.Timestamp.now(),
     });
     sendSuccess(res, { message: 'Logged out from all devices successfully' });
@@ -262,7 +265,8 @@ const logoutAllDevices = async (req, res) => {
 
 const deleteAccount = async (req, res) => {
   try {
-    const userDoc = await admin.firestore().collection('users').doc(req.uid).get();
+    const uid = req.user?.uid || req.uid;
+    const userDoc = await admin.firestore().collection('users').doc(uid).get();
     if (!userDoc.exists) return sendError(res, 'User not found', 404);
 
     const userData = userDoc.data();
@@ -270,7 +274,7 @@ const deleteAccount = async (req, res) => {
     if (userData.role === 'staff') {
       const existing = await admin.firestore()
         .collection('deletionRequests')
-        .where('uid', '==', req.uid)
+        .where('uid', '==', uid)
         .where('status', '==', 'pending')
         .get();
 
@@ -279,7 +283,7 @@ const deleteAccount = async (req, res) => {
       }
 
       await admin.firestore().collection('deletionRequests').add({
-        uid: req.uid,
+        uid,
         email: userData.email,
         fullName: userData.fullName,
         role: userData.role,
@@ -295,15 +299,15 @@ const deleteAccount = async (req, res) => {
     }
 
     await admin.firestore().collection('deletionLogs').add({
-      uid: req.uid,
+      uid,
       email: userData.email,
       fullName: userData.fullName,
       role: userData.role,
       deletedAt: admin.firestore.Timestamp.now(),
     });
 
-    await admin.firestore().collection('users').doc(req.uid).delete();
-    await admin.auth().deleteUser(req.uid);
+    await admin.firestore().collection('users').doc(uid).delete();
+    await admin.auth().deleteUser(uid);
 
     sendSuccess(res, { message: 'Account deleted successfully' });
   } catch (error) {
@@ -314,13 +318,14 @@ const deleteAccount = async (req, res) => {
 const reportSecurityIssue = async (req, res) => {
   try {
     const { issueType, description } = req.body;
+    const uid = req.user?.uid || req.uid;
 
-    const userDoc = await admin.firestore().collection('users').doc(req.uid).get();
+    const userDoc = await admin.firestore().collection('users').doc(uid).get();
     if (!userDoc.exists) return sendError(res, 'User not found', 404);
 
     const userData = userDoc.data();
     await admin.firestore().collection('securityIssues').add({
-      uid: req.uid,
+      uid,
       email: userData.email,
       fullName: userData.fullName,
       role: userData.role,
@@ -339,8 +344,9 @@ const reportSecurityIssue = async (req, res) => {
 const requestIdCardUpdate = async (req, res) => {
   try {
     const { newIdCardUrl, newIdCardName } = req.body;
+    const uid = req.user?.uid || req.uid;
 
-    const userDoc = await admin.firestore().collection('users').doc(req.uid).get();
+    const userDoc = await admin.firestore().collection('users').doc(uid).get();
     if (!userDoc.exists) return sendError(res, 'User not found', 404);
 
     const userData = userDoc.data();
@@ -350,7 +356,7 @@ const requestIdCardUpdate = async (req, res) => {
 
     const existing = await admin.firestore()
       .collection('idCardRequests')
-      .where('uid', '==', req.uid)
+      .where('uid', '==', uid)
       .where('status', '==', 'pending')
       .get();
 
@@ -359,7 +365,7 @@ const requestIdCardUpdate = async (req, res) => {
     }
 
     await admin.firestore().collection('idCardRequests').add({
-      uid: req.uid,
+      uid,
       email: userData.email,
       fullName: userData.fullName,
       role: userData.role,
@@ -378,14 +384,15 @@ const requestIdCardUpdate = async (req, res) => {
 
 const myProfile = async (req, res) => {
   try {
-    const userDoc = await admin.firestore().collection('users').doc(req.uid).get();
+    const uid = req.user?.uid || req.uid;
+    const userDoc = await admin.firestore().collection('users').doc(uid).get();
     if (!userDoc.exists) return sendError(res, 'User not found', 404);
 
     const { idCardBase64, certificateBase64, ...safeData } = userDoc.data();
 
     const pendingIdCard = await admin.firestore()
       .collection('idCardRequests')
-      .where('uid', '==', req.uid)
+      .where('uid', '==', uid)
       .where('status', '==', 'pending')
       .get();
 
@@ -398,7 +405,7 @@ const myProfile = async (req, res) => {
 const savePushToken = async (req, res) => {
   try {
     const { expoPushToken } = req.body;
-    const uid = req.user.uid;
+    const uid = req.user?.uid || req.uid;
 
     if (!expoPushToken || !expoPushToken.startsWith('ExponentPushToken')) {
       return sendError(res, 'Invalid push token', 400);

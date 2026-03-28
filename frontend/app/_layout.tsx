@@ -117,24 +117,37 @@ export default function RootLayout() {
 
     notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      const data = response.notification.request.content.data as any;
-      if (!data) return;
-      const user = auth.currentUser;
-      if (!user) return;
-      try {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (!snap.exists()) return;
-        const { role, verificationStatus } = snap.data();
-        if (role === "staff" && verificationStatus === "approved") {
-          router.push("/staff-dashboard" as any);
-        } else {
-          router.push("/" as any);
-        }
-      } catch {
+ 
+responseListener.current = Notifications.addNotificationResponseReceivedListener(async (response) => {
+  const data = response.notification.request.content.data as any;
+  if (!data) return;
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    if (!snap.exists()) return;
+    const { role, verificationStatus } = snap.data();
+    if (role === "staff" && verificationStatus === "approved") {
+      if (data.complaintId) {
+        router.push({ pathname: "/staff-dashboard", params: { openComplaintId: data.complaintId } } as any);
+      } else if (data.itemId) {
+        router.push({ pathname: "/staff-dashboard", params: { openTab: "lostfound" } } as any);
+      } else {
+        router.push("/staff-dashboard" as any);
+      }
+    } else {
+      if (data.complaintId) {
+        router.push({ pathname: "/", params: { openComplaintId: data.complaintId } } as any);
+      } else if (data.itemId) {
+        router.push({ pathname: "/", params: { openTab: "lostfound" } } as any);
+      } else {
         router.push("/" as any);
       }
-    });
+    }
+  } catch {
+    router.push("/" as any);
+  }
+});
 
     return () => {
       unsubscribe();

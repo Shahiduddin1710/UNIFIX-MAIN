@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://10.135.129.32:3000'
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://10.212.220.32:3000'
 
 const getToken = () => localStorage.getItem('unifix_admin_token')
 

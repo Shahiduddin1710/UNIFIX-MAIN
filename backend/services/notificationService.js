@@ -5,28 +5,30 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const sendPushNotification = async (expoPushTokens, title, body, data = {}) => {
   try {
     const tokens = Array.isArray(expoPushTokens) ? expoPushTokens : [expoPushTokens];
-    const validTokens = tokens.filter(t => t && typeof t === 'string' && t.startsWith('ExponentPushToken'));
-    if (validTokens.length === 0) return;
+
+    const validTokens = tokens.filter(
+      t => t && typeof t === 'string' && t.startsWith('ExponentPushToken')
+    );
+
+    if (!validTokens.length) return;
 
     const messages = validTokens.map(token => ({
       to: token,
       sound: 'default',
       title,
       body,
-      data,
+      data: {
+        ...data,
+        _deepLink: buildDeepLink(data),
+      },
       priority: 'high',
       channelId: 'default',
     }));
 
-    const chunks = [];
     for (let i = 0; i < messages.length; i += 100) {
-      chunks.push(messages.slice(i, i + 100));
-    }
-
-    for (const chunk of chunks) {
-      await axios.post(EXPO_PUSH_URL, chunk, {
+      await axios.post(EXPO_PUSH_URL, messages.slice(i, i + 100), {
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Accept-Encoding': 'gzip, deflate',
           'Content-Type': 'application/json',
         },
@@ -37,65 +39,119 @@ const sendPushNotification = async (expoPushTokens, title, body, data = {}) => {
   }
 };
 
-const getAllUserTokens = async (adminFirestore, excludeUid = null) => {
-  try {
-    const snapshot = await adminFirestore.collection('users').get();
-    const tokens = [];
-    snapshot.docs.forEach(doc => {
-      if (doc.id === excludeUid) return;
-      const data = doc.data();
-      if (data.expoPushToken && data.expoPushToken.startsWith('ExponentPushToken')) {
-        tokens.push(data.expoPushToken);
-      }
-    });
-    return tokens;
-  } catch {
-    return [];
+const buildDeepLink = (data = {}) => {
+  const { type, complaintId, itemId } = data;
+
+  if (
+    type === 'new_complaint' ||
+    type === 'complaint_accepted' ||
+    type === 'complaint_in_progress' ||
+    type === 'complaint_completed' ||
+    type === 'complaint_rejected' ||
+    type === 'new_rating'
+  ) {
+    if (complaintId) return `unifix://complaint/${complaintId}`;
   }
+
+  if (type === 'new_lost_found') {
+    if (itemId) return `unifix://lost-found/${itemId}`;
+  }
+
+  return null;
 };
 
-const getTokensByRole = async (adminFirestore, roles = [], excludeUid = null) => {
-  try {
-    const tokens = [];
-    for (const role of roles) {
-      let query = adminFirestore.collection('users').where('role', '==', role);
-      if (role === 'staff') {
-        query = query.where('verificationStatus', '==', 'approved');
+const extractTokens = (data) => {
+  const tokens = [];
+
+  if (Array.isArray(data.expoPushToken)) {
+    data.expoPushToken.forEach(t => {
+      if (t && typeof t === 'string' && t.startsWith('ExponentPushToken')) {
+        tokens.push(t);
       }
-      const snapshot = await query.get();
-      snapshot.docs.forEach(doc => {
-        if (doc.id === excludeUid) return;
-        const data = doc.data();
-        if (data.expoPushToken && data.expoPushToken.startsWith('ExponentPushToken')) {
-          tokens.push(data.expoPushToken);
-        }
-      });
+    });
+  } else if (
+    data.expoPushToken &&
+    typeof data.expoPushToken === 'string' &&
+    data.expoPushToken.startsWith('ExponentPushToken')
+  ) {
+    tokens.push(data.expoPushToken);
+  }
+
+  return tokens;
+};
+
+const getAllUserTokens = async (db, excludeUid = null) => {
+  const snapshot = await db.collection('users').get();
+  const tokens = [];
+
+  snapshot.forEach(doc => {
+    if (excludeUid && doc.id === excludeUid) return;
+
+    const data = doc.data();
+    tokens.push(...extractTokens(data));
+  });
+
+  return tokens;
+};
+
+const getTokensByRole = async (db, roles = [], excludeUid = null) => {
+  const tokens = [];
+
+  for (const role of roles) {
+    let query = db.collection('users').where('role', '==', role);
+
+    if (role === 'staff') {
+      query = query.where('verificationStatus', '==', 'approved');
     }
-    return tokens;
-  } catch {
-    return [];
-  }
-};
 
-const getTokensByDesignation = async (adminFirestore, designation, excludeUid = null) => {
-  try {
-    const snapshot = await adminFirestore.collection('users')
-      .where('role', '==', 'staff')
-      .where('designation', '==', designation)
-      .where('verificationStatus', '==', 'approved')
-      .get();
-    const tokens = [];
-    snapshot.docs.forEach(doc => {
-      if (doc.id === excludeUid) return;
+    const snapshot = await query.get();
+
+    snapshot.forEach(doc => {
+      if (excludeUid && doc.id === excludeUid) return;
+
       const data = doc.data();
-      if (data.expoPushToken && data.expoPushToken.startsWith('ExponentPushToken')) {
-        tokens.push(data.expoPushToken);
-      }
+      tokens.push(...extractTokens(data));
     });
-    return tokens;
-  } catch {
-    return [];
   }
+
+  return tokens;
 };
 
-module.exports = { sendPushNotification, getAllUserTokens, getTokensByRole, getTokensByDesignation };
+const getTokensByDesignation = async (db, designation, excludeUid = null, gender = null) => {
+  let query = db
+    .collection('users')
+    .where('role', '==', 'staff')
+    .where('designation', '==', designation)
+    .where('verificationStatus', '==', 'approved');
+
+  if (gender) {
+    query = query.where('gender', '==', gender);
+  }
+
+  const snapshot = await query.get();
+  const tokens = [];
+
+  snapshot.forEach(doc => {
+    if (excludeUid && doc.id === excludeUid) return;
+
+    const data = doc.data();
+    tokens.push(...extractTokens(data));
+  });
+
+  return tokens;
+};
+
+const getTokenForUid = async (db, uid) => {
+  const doc = await db.collection('users').doc(uid).get();
+  if (!doc.exists) return [];
+
+  return extractTokens(doc.data());
+};
+
+module.exports = {
+  sendPushNotification,
+  getAllUserTokens,
+  getTokensByRole,
+  getTokensByDesignation,
+  getTokenForUid,
+};
