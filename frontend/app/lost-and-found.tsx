@@ -3,11 +3,12 @@ import {
   ScrollView, RefreshControl, Image, Modal, TextInput,
   KeyboardAvoidingView, Platform, StatusBar, Dimensions,
 } from "react-native";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
+import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { Ionicons } from "@expo/vector-icons";
-import { auth } from "../firebase/firebaseConfig";
+import { auth, db } from "../firebase/firebaseConfig";
 import { lostFoundAPI } from "../services/api";
 import { PanResponder, Animated } from "react-native";
 
@@ -60,7 +61,6 @@ function ImageViewer({ uri, visible, onClose }: { uri: string; visible: boolean;
         <TouchableOpacity style={iv.closeBtn} onPress={onClose}>
           <Ionicons name="close" size={20} color="#fff" />
         </TouchableOpacity>
-        <Text style={iv.hint}>Pinch to zoom  •  Long press to reset</Text>
         <Animated.View style={{ transform: [{ scale }, { translateX }, { translateY }] }} {...panResponder.panHandlers}>
           <TouchableOpacity activeOpacity={1} onPress={() => { if (lastScale.current <= 1) onClose(); }} onLongPress={reset}>
             <Image source={{ uri }} style={iv.image} resizeMode="contain" />
@@ -73,8 +73,7 @@ function ImageViewer({ uri, visible, onClose }: { uri: string; visible: boolean;
 
 const iv = StyleSheet.create({
   overlay:  { flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
-  closeBtn: { position: "absolute", top: 52, right: 20, zIndex: 10, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  hint:     { position: "absolute", bottom: 44, alignSelf: "center", color: "rgba(255,255,255,0.45)", fontSize: 12, zIndex: 10 },
+  closeBtn: { position: "absolute", top: 52, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   image:    { width: SW, height: SH },
 });
 
@@ -86,7 +85,14 @@ type LostItem = {
   handedToName?: string; handedAt?: any;
 };
 
-type TabType = "feed" | "myposts";
+type ClaimItem = {
+  id: string; itemName: string; photoUrl: string | null;
+  handedByName: string; handedByRole: string;
+  handedToName: string; roomNumber: string; roomLabel: string;
+  collectLocation: string; handedAt: any;
+};
+
+type TabType = "feed" | "myposts" | "claims";
 
 function formatAgo(ts: any): string {
   if (!ts) return "";
@@ -101,15 +107,20 @@ function formatAgo(ts: any): string {
 
 function formatDate(ts: any): string {
   if (!ts) return "—";
-  const seconds = ts._seconds ?? ts.seconds ?? (typeof ts === "number" ? ts : null);
-  if (!seconds) return "—";
-  return new Date(seconds * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  let ms: number | null = null;
+  if (typeof ts === "number") ms = ts * 1000;
+  else if (ts?.toDate) ms = ts.toDate().getTime();
+  else if (ts?._seconds) ms = ts._seconds * 1000;
+  else if (ts?.seconds) ms = ts.seconds * 1000;
+  if (!ms || isNaN(ms)) return "—";
+  return new Date(ms).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export default function LostAndFoundScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("feed");
   const [feedItems, setFeedItems] = useState<LostItem[]>([]);
   const [myPosts, setMyPosts] = useState<LostItem[]>([]);
+  const [claimItems, setClaimItems] = useState<ClaimItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [handoverItem, setHandoverItem] = useState<LostItem | null>(null);
@@ -120,34 +131,51 @@ export default function LostAndFoundScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    let unsubFeed: (() => void) | null = null;
+    let unsubMyPosts: (() => void) | null = null;
+    let unsubClaims: (() => void) | null = null;
+
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
       if (!u) { router.replace("/login" as any); return; }
-      await fetchAll();
+
+      const uid = u.uid;
+
+      unsubFeed = onSnapshot(
+        query(collection(db, "lostFound"), where("status", "==", "available"), orderBy("createdAt", "desc")),
+        (snap) => {
+          setFeedItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any, isMyPost: doc.data().postedBy === uid })));
+          setLoading(false);
+          setRefreshing(false);
+        }
+      );
+
+      unsubMyPosts = onSnapshot(
+        query(collection(db, "lostFound"), where("postedBy", "==", uid), orderBy("createdAt", "desc")),
+        (snap) => {
+          setMyPosts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any, isMyPost: true })));
+        }
+      );
+
+      unsubClaims = onSnapshot(
+        query(collection(db, "claims"), orderBy("createdAt", "desc")),
+        (snap) => {
+          setClaimItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any })));
+        }
+      );
     });
-    return () => unsub();
+
+    return () => {
+      unsubAuth();
+      unsubFeed?.();
+      unsubMyPosts?.();
+      unsubClaims?.();
+    };
   }, []);
 
-  const fetchFeed = useCallback(async () => {
-    try {
-      const data = await lostFoundAPI.feed();
-      setFeedItems(data.items || []);
-    } catch {}
-  }, []);
-
-  const fetchMyPosts = useCallback(async () => {
-    try {
-      const data = await lostFoundAPI.myPosts();
-      setMyPosts(data.items || []);
-    } catch {}
-  }, []);
-
-  const fetchAll = useCallback(async () => {
-    await Promise.all([fetchFeed(), fetchMyPosts()]);
-    setLoading(false);
-    setRefreshing(false);
-  }, [fetchFeed, fetchMyPosts]);
-
-  const onRefresh = () => { setRefreshing(true); fetchAll(); };
+  const onRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 500);
+  };
 
   const handleHandover = async () => {
     if (!handedToName.trim()) { setHandoverError("Please enter the name of the person."); return; }
@@ -155,70 +183,68 @@ export default function LostAndFoundScreen() {
     setHandoverLoading(true);
     try {
       await lostFoundAPI.handover(handoverItem.id, handedToName.trim());
-      setFeedItems((prev) => prev.filter((i) => i.id !== handoverItem.id));
       setHandoverItem(null);
-      await fetchMyPosts();
-      setActiveTab("myposts");
+      setActiveTab("claims");
     } catch (err: any) {
       setHandoverError(err.message || "Failed to mark as handed over.");
     } finally { setHandoverLoading(false); }
   };
-
+  
   const renderCard = (item: LostItem) => {
     const isHandedOver = item.status === "handed_over";
     return (
-      <View key={item.id} style={s.card}>
-        <View style={s.cardHeader}>
-          <View style={s.avatar}>
-            <Text style={s.avatarText}>{item.postedByName?.[0]?.toUpperCase() ?? "?"}</Text>
+      <View key={item.id} style={s.lfCard}>
+        <View style={s.lfCardHeader}>
+          <View style={s.lfAvatar}>
+            <Text style={s.lfAvatarText}>{item.postedByName?.[0]?.toUpperCase() ?? "?"}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.posterName}>{item.postedByName}</Text>
-            <Text style={s.posterTime}>{formatAgo(item.createdAt)}</Text>
+            <Text style={s.lfPosterName}>{item.postedByName}</Text>
+            <Text style={s.lfPosterTime}>{formatAgo(item.createdAt)}</Text>
           </View>
-          {item.isMyPost && <View style={s.myPostBadge}><Text style={s.myPostBadgeText}>MY POST</Text></View>}
-          {!isHandedOver && <View style={s.foundBadge}><Text style={s.foundBadgeText}>FOUND</Text></View>}
+          {item.isMyPost && <View style={s.lfMyPostBadge}><Text style={s.lfMyPostBadgeText}>MY POST</Text></View>}
+          {!isHandedOver && <View style={s.lfFoundBadge}><Text style={s.lfFoundBadgeText}>FOUND</Text></View>}
         </View>
         {item.photoUrl ? (
-          <TouchableOpacity activeOpacity={0.92} onPress={() => setImageViewerUri(item.photoUrl!)}>
-            <Image source={{ uri: item.photoUrl }} style={s.cardImage} resizeMode="cover" />
+          <TouchableOpacity onPress={() => setImageViewerUri(item.photoUrl!)} activeOpacity={0.9}>
+            <Image source={{ uri: item.photoUrl }} style={s.lfImage} resizeMode="cover" />
           </TouchableOpacity>
         ) : (
-          <View style={s.cardImageEmpty}>
+          <View style={s.lfImageEmpty}>
             <Ionicons name="cube-outline" size={44} color="#cbd5e1" />
           </View>
         )}
-        <View style={s.cardBody}>
-          <Text style={s.cardTitle}>{item.itemName}</Text>
-          {item.description ? <Text style={s.cardDesc}>{item.description}</Text> : null}
-          <View style={s.metaRow}>
+        <View style={s.lfBody}>
+          <Text style={s.lfTitle}>{item.itemName}</Text>
+          {item.description ? <Text style={s.lfDesc}>{item.description}</Text> : null}
+          <View style={s.lfMetaRow}>
             <Ionicons name="location-outline" size={13} color="#374151" />
-            <Text style={s.locationText}>
+            <Text style={s.lfLocationText}>
               {item.roomNumber ? `Room ${item.roomNumber}${item.roomLabel ? ` — ${item.roomLabel}` : ""}` : "—"}
             </Text>
           </View>
           {item.collectLocation ? (
-            <View style={s.metaRow}>
+            <View style={s.lfMetaRow}>
               <Ionicons name="pin-outline" size={13} color="#16a34a" />
-              <Text style={s.collectText}>Collect from: {item.collectLocation}</Text>
+              <Text style={s.lfCollectText}>Collect from: {item.collectLocation}</Text>
             </View>
           ) : null}
           {isHandedOver ? (
-            <View style={s.handedBox}>
-              <Ionicons name="hand-left-outline" size={20} color="#16a34a" />
+            <View style={s.lfHandedBox}>
+              <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
               <View style={{ flex: 1 }}>
-                <Text style={s.handedName}>Handed to {item.handedToName}</Text>
-                <Text style={s.handedDate}>{formatDate(item.handedAt)}</Text>
+                <Text style={s.lfHandedName}>Handed to {item.handedToName}</Text>
+                <Text style={s.lfHandedDate}>{formatDate(item.handedAt)}</Text>
               </View>
             </View>
           ) : item.isMyPost ? (
             <TouchableOpacity
-              style={s.handoverBtn}
+              style={s.lfHandoverBtn}
               onPress={() => { setHandoverItem(item); setHandedToName(""); setHandoverError(""); }}
               activeOpacity={0.85}
             >
               <Ionicons name="checkmark-circle-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={s.handoverBtnText}>Mark as Handed Over</Text>
+              <Text style={s.lfHandoverBtnText}>Mark as Handed Over</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -226,7 +252,43 @@ export default function LostAndFoundScreen() {
     );
   };
 
-  const displayItems = activeTab === "feed" ? feedItems : myPosts;
+  const renderClaimCard = (item: ClaimItem) => (
+    <View key={item.id} style={[s.lfCard, { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 14 }]}>
+      <View style={[s.lfAvatar, { width: 42, height: 42, borderRadius: 12, marginTop: 2 }]}>
+        <Ionicons name="checkmark-circle-outline" size={20} color="#16a34a" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.lfTitle}>{item.itemName}</Text>
+        <Text style={s.lfDesc}>
+          <Text style={{ color: "#94a3b8" }}>Handed by </Text>
+          <Text style={{ fontWeight: "700", color: "#0f172a" }}>{item.handedByName}</Text>
+          {item.handedByRole ? <Text style={{ color: "#64748b" }}> ({item.handedByRole})</Text> : null}
+        </Text>
+        <Text style={s.lfDesc}>
+          <Text style={{ color: "#94a3b8" }}>Collected by </Text>
+          <Text style={{ fontWeight: "700", color: "#0f172a" }}>{item.handedToName}</Text>
+        </Text>
+        {item.roomNumber ? (
+          <View style={s.lfMetaRow}>
+            <Ionicons name="location-outline" size={12} color="#64748b" />
+            <Text style={s.lfLocationText}>Room {item.roomNumber}{item.roomLabel ? ` — ${item.roomLabel}` : ""}</Text>
+          </View>
+        ) : null}
+        {item.collectLocation ? (
+          <View style={s.lfMetaRow}>
+            <Ionicons name="pin-outline" size={12} color="#16a34a" />
+            <Text style={s.lfCollectText}>Handed at: {item.collectLocation}</Text>
+          </View>
+        ) : null}
+        <Text style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{formatDate(item.handedAt)}</Text>
+      </View>
+      {item.photoUrl ? (
+        <TouchableOpacity onPress={() => setImageViewerUri(item.photoUrl!)} activeOpacity={0.9}>
+          <Image source={{ uri: item.photoUrl }} style={{ width: 56, height: 56, borderRadius: 10, marginTop: 2 }} resizeMode="cover" />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
 
   if (loading) return <View style={s.loader}><ActivityIndicator size="large" color="#16a34a" /></View>;
 
@@ -243,58 +305,87 @@ export default function LostAndFoundScreen() {
         </TouchableOpacity>
       </View>
       <View style={s.segmentRow}>
-        <TouchableOpacity style={[s.segmentBtn, activeTab === "feed" && s.segmentBtnActive]} onPress={() => setActiveTab("feed")}>
-          <Text style={[s.segmentBtnText, activeTab === "feed" && s.segmentBtnTextActive]}>All Items</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.segmentBtn, activeTab === "myposts" && s.segmentBtnActive]} onPress={() => setActiveTab("myposts")}>
-          <Text style={[s.segmentBtnText, activeTab === "myposts" && s.segmentBtnTextActive]}>My Posts</Text>
-        </TouchableOpacity>
+        {(["feed", "myposts", "claims"] as TabType[]).map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[s.segmentBtn, activeTab === tab && s.segmentBtnActive]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text style={[s.segmentBtnText, activeTab === tab && s.segmentBtnTextActive]}>
+              {tab === "feed" ? "All Items" : tab === "myposts" ? "My Posts" : "Claims"}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
-      <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#16a34a"]} />}>
-        {displayItems.length === 0 ? (
-          <View style={s.emptyState}>
-            <View style={s.emptyIconWrap}>
-              <Ionicons name={activeTab === "feed" ? "search-outline" : "cube-outline"} size={36} color="#16a34a" />
+      <ScrollView
+        contentContainerStyle={s.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#16a34a"]} />}
+      >
+        {activeTab === "feed" && (
+          feedItems.length === 0 ? (
+            <View style={s.emptyState}>
+              <View style={s.emptyIconWrap}><Ionicons name="search-outline" size={36} color="#16a34a" /></View>
+              <Text style={s.emptyTitle}>No items posted yet</Text>
+              <Text style={s.emptySub}>Found something on campus? Post it here!</Text>
+              <TouchableOpacity style={s.postBtn} onPress={() => router.push("/post-found-item" as any)}>
+                <Text style={s.postBtnText}>Post Found Item</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={s.emptyTitle}>{activeTab === "feed" ? "No items posted yet" : "No posts yet"}</Text>
-            <Text style={s.emptySub}>{activeTab === "feed" ? "Found something on campus? Post it here!" : "Items you post will appear here."}</Text>
-            <TouchableOpacity style={s.postBtn} onPress={() => router.push("/post-found-item" as any)}>
-              <Text style={s.postBtnText}>Post Found Item</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          displayItems.map((item) => renderCard(item))
+          ) : feedItems.map(renderCard)
+        )}
+        {activeTab === "myposts" && (
+          myPosts.length === 0 ? (
+            <View style={s.emptyState}>
+              <View style={s.emptyIconWrap}><Ionicons name="cube-outline" size={36} color="#16a34a" /></View>
+              <Text style={s.emptyTitle}>No posts yet</Text>
+              <Text style={s.emptySub}>Items you post will appear here.</Text>
+              <TouchableOpacity style={s.postBtn} onPress={() => router.push("/post-found-item" as any)}>
+                <Text style={s.postBtnText}>Post Found Item</Text>
+              </TouchableOpacity>
+            </View>
+          ) : myPosts.map(renderCard)
+        )}
+        {activeTab === "claims" && (
+          claimItems.length === 0 ? (
+            <View style={s.emptyState}>
+              <View style={s.emptyIconWrap}><Ionicons name="hand-left-outline" size={36} color="#16a34a" /></View>
+              <Text style={s.emptyTitle}>No claims yet</Text>
+              <Text style={s.emptySub}>Handover records will appear here.</Text>
+            </View>
+          ) : claimItems.map(renderClaimCard)
         )}
       </ScrollView>
+
       <Modal visible={!!handoverItem} animationType="slide" transparent onRequestClose={() => setHandoverItem(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalOverlay}>
-          <View style={s.modalSheet}>
-            <View style={s.modalHandle} />
-            <Text style={s.modalTitle}>Mark as Handed Over</Text>
-            <Text style={s.modalSub}>{`Enter the name of the person who collected "${handoverItem?.itemName}"`}</Text>
-            <Text style={s.modalLabel}>Collected By</Text>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.sheetOverlay}>
+          <View style={s.sheet}>
+            <View style={s.sheetHandle} />
+            <Text style={s.sheetTitle}>Mark as Handed Over</Text>
+            <Text style={s.sheetSub}>{`Enter the name of the person who collected "${handoverItem?.itemName}"`}</Text>
             <TextInput
-              style={s.modalInput}
+              style={s.sheetInput}
               placeholder="e.g. Shaho"
               placeholderTextColor="#9ca3af"
               value={handedToName}
               onChangeText={(t) => { setHandedToName(t); setHandoverError(""); }}
               autoCapitalize="words"
             />
-            {handoverError ? <Text style={s.modalError}>{handoverError}</Text> : null}
-            <View style={s.modalBtnRow}>
-              <TouchableOpacity style={s.modalCancelBtn} onPress={() => setHandoverItem(null)} disabled={handoverLoading}>
-                <Text style={s.modalCancelText}>Cancel</Text>
+            {handoverError ? <Text style={s.sheetError}>{handoverError}</Text> : null}
+            <View style={s.sheetBtnRow}>
+              <TouchableOpacity style={s.sheetCancelBtn} onPress={() => setHandoverItem(null)} disabled={handoverLoading}>
+                <Text style={s.sheetCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[s.modalConfirmBtn, handoverLoading && { opacity: 0.55 }]} onPress={handleHandover} disabled={handoverLoading}>
+              <TouchableOpacity style={[s.sheetConfirmBtn, handoverLoading && { opacity: 0.55 }]} onPress={handleHandover} disabled={handoverLoading}>
                 {handoverLoading
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.modalConfirmText}>Confirm Handover</Text>}
+                  : <Text style={s.sheetConfirmText}>Confirm Handover</Text>}
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
       {imageViewerUri && <ImageViewer uri={imageViewerUri} visible={!!imageViewerUri} onClose={() => setImageViewerUri(null)} />}
     </View>
   );
@@ -319,40 +410,39 @@ const s = StyleSheet.create({
   emptySub: { fontSize: 14, color: "#64748b", textAlign: "center", marginBottom: 24, paddingHorizontal: 20, lineHeight: 22 },
   postBtn: { backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 28 },
   postBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  card: { backgroundColor: "#ffffff", borderRadius: 16, overflow: "hidden", borderWidth: 1.5, borderColor: "#f1f5f9", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  cardHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10 },
-  avatar: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#f0fdf4", borderWidth: 1.5, borderColor: "#bbf7d0", alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 15, fontWeight: "700", color: "#16a34a" },
-  posterName: { fontSize: 14, fontWeight: "600", color: "#0f172a" },
-  posterTime: { fontSize: 11, color: "#94a3b8", marginTop: 1 },
-  myPostBadge: { backgroundColor: "#f0fdf4", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: "#bbf7d0", marginLeft: 4 },
-  myPostBadgeText: { fontSize: 9, fontWeight: "700", color: "#16a34a", letterSpacing: 0.3 },
-  foundBadge: { backgroundColor: "#16a34a", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 4 },
-  foundBadgeText: { fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.3 },
-  cardImage: { width: "100%", height: 220 },
-  cardImageEmpty: { width: "100%", height: 150, backgroundColor: "#f8fafc", alignItems: "center", justifyContent: "center" },
-  cardBody: { padding: 14 },
-  cardTitle: { fontSize: 17, fontWeight: "700", color: "#0f172a", marginBottom: 6 },
-  cardDesc: { fontSize: 13, color: "#64748b", lineHeight: 20, marginBottom: 8 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
-  locationText: { fontSize: 13, color: "#374151", fontWeight: "500" },
-  collectText: { fontSize: 13, color: "#16a34a", fontWeight: "500" },
-  handedBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: "#bbf7d0" },
-  handedName: { fontSize: 13, fontWeight: "700", color: "#16a34a" },
-  handedDate: { fontSize: 11, color: "#94a3b8", marginTop: 2 },
-  handoverBtn: { backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 10, flexDirection: "row", justifyContent: "center" },
-  handoverBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.5)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#e2e8f0", alignSelf: "center", marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a", marginBottom: 6 },
-  modalSub: { fontSize: 14, color: "#64748b", lineHeight: 22, marginBottom: 20 },
-  modalLabel: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8 },
-  modalInput: { backgroundColor: "#f8fafc", borderRadius: 12, padding: 14, fontSize: 15, color: "#0f172a", borderWidth: 1.5, borderColor: "#e2e8f0", marginBottom: 8 },
-  modalError: { fontSize: 13, color: "#dc2626", marginBottom: 12, fontWeight: "500" },
-  modalBtnRow: { flexDirection: "row", gap: 10, marginTop: 8 },
-  modalCancelBtn: { flex: 1, backgroundColor: "#f8fafc", borderRadius: 10, paddingVertical: 13, alignItems: "center", borderWidth: 1.5, borderColor: "#e2e8f0" },
-  modalCancelText: { fontSize: 14, fontWeight: "600", color: "#64748b" },
-  modalConfirmBtn: { flex: 1, backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 13, alignItems: "center" },
-  modalConfirmText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  lfCard: { backgroundColor: "#ffffff", borderRadius: 16, overflow: "hidden", borderWidth: 1.5, borderColor: "#f1f5f9", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  lfCardHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10 },
+  lfAvatar: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#f0fdf4", borderWidth: 1.5, borderColor: "#bbf7d0", alignItems: "center", justifyContent: "center" },
+  lfAvatarText: { fontSize: 15, fontWeight: "700", color: "#16a34a" },
+  lfPosterName: { fontSize: 14, fontWeight: "600", color: "#0f172a" },
+  lfPosterTime: { fontSize: 11, color: "#94a3b8", marginTop: 1 },
+  lfMyPostBadge: { backgroundColor: "#f0fdf4", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: "#bbf7d0", marginLeft: 4 },
+  lfMyPostBadgeText: { fontSize: 9, fontWeight: "700", color: "#16a34a", letterSpacing: 0.3 },
+  lfFoundBadge: { backgroundColor: "#16a34a", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 4 },
+  lfFoundBadgeText: { fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.3 },
+  lfImage: { width: "100%", height: 220 },
+  lfImageEmpty: { width: "100%", height: 150, backgroundColor: "#f8fafc", alignItems: "center", justifyContent: "center" },
+  lfBody: { padding: 14 },
+  lfTitle: { fontSize: 17, fontWeight: "700", color: "#0f172a", marginBottom: 6 },
+  lfDesc: { fontSize: 13, color: "#64748b", lineHeight: 20, marginBottom: 8 },
+  lfMetaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
+  lfLocationText: { fontSize: 13, color: "#374151", fontWeight: "500" },
+  lfCollectText: { fontSize: 13, color: "#16a34a", fontWeight: "500" },
+  lfHandedBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: "#bbf7d0" },
+  lfHandedName: { fontSize: 13, fontWeight: "700", color: "#16a34a" },
+  lfHandedDate: { fontSize: 11, color: "#94a3b8", marginTop: 2 },
+  lfHandoverBtn: { backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 10, flexDirection: "row", justifyContent: "center" },
+  lfHandoverBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  sheetOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.5)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#e2e8f0", alignSelf: "center", marginBottom: 20 },
+  sheetTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a", marginBottom: 6 },
+  sheetSub: { fontSize: 14, color: "#64748b", lineHeight: 22, marginBottom: 20 },
+  sheetInput: { backgroundColor: "#f8fafc", borderRadius: 12, padding: 14, fontSize: 15, color: "#0f172a", borderWidth: 1.5, borderColor: "#e2e8f0", marginBottom: 8 },
+  sheetError: { fontSize: 13, color: "#dc2626", marginBottom: 12, fontWeight: "500" },
+  sheetBtnRow: { flexDirection: "row", gap: 10, marginTop: 8 },
+  sheetCancelBtn: { flex: 1, backgroundColor: "#f8fafc", borderRadius: 10, paddingVertical: 13, alignItems: "center", borderWidth: 1.5, borderColor: "#e2e8f0" },
+  sheetCancelText: { fontSize: 14, fontWeight: "600", color: "#64748b" },
+  sheetConfirmBtn: { flex: 1, backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 13, alignItems: "center" },
+  sheetConfirmText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });

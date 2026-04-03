@@ -89,15 +89,36 @@ export default function PostFoundItemScreen() {
     }
   };
 
-  const pickPhoto = async () => {
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) { Alert.alert("Permission Required", "Please allow photo library access."); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 });
-      if (result.canceled) return;
-      const asset = result.assets[0];
-      setPhoto({ uri: asset.uri, name: asset.uri.split("/").pop() || `lostfound_${Date.now()}.jpg` });
-    } catch { Alert.alert("Error", "Failed to pick photo."); }
+const pickPhoto = async () => {
+    Alert.alert("Add Photo", "Choose an option", [
+      {
+        text: "Take Photo",
+        onPress: async () => {
+          try {
+            const perm = await ImagePicker.requestCameraPermissionsAsync();
+            if (!perm.granted) { Alert.alert("Permission Required", "Please allow camera access."); return; }
+            const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
+            if (result.canceled) return;
+            const asset = result.assets[0];
+            setPhoto({ uri: asset.uri, name: asset.uri.split("/").pop() || `lostfound_${Date.now()}.jpg` });
+          } catch { Alert.alert("Error", "Failed to open camera."); }
+        },
+      },
+      {
+        text: "Choose from Gallery",
+        onPress: async () => {
+          try {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) { Alert.alert("Permission Required", "Please allow photo library access."); return; }
+            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 });
+            if (result.canceled) return;
+            const asset = result.assets[0];
+            setPhoto({ uri: asset.uri, name: asset.uri.split("/").pop() || `lostfound_${Date.now()}.jpg` });
+          } catch { Alert.alert("Error", "Failed to pick photo."); }
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   const handleSubmit = async () => {

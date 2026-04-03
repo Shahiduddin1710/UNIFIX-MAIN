@@ -85,12 +85,42 @@ const handover = async (req, res) => {
     if (item.postedBy !== uid) return sendError(res, 'Only the person who posted this item can mark it as handed over.', 403);
     if (item.status !== 'available') return sendError(res, 'Item already handed over.', 400);
 
+    const handedAt = admin.firestore.Timestamp.now();
+
     await ref.update({
       status: 'handed_over',
       handedToName: handedToName.trim(),
-      handedAt: admin.firestore.Timestamp.now(),
-      updatedAt: admin.firestore.Timestamp.now(),
+      handedAt,
+      updatedAt: handedAt,
     });
+
+    const userDoc = await admin.firestore().collection('users').doc(uid).get();
+    const userData = userDoc.exists ? userDoc.data() : {};
+
+    await admin.firestore().collection('claims').add({
+      itemId,
+      itemName: item.itemName,
+      photoUrl: item.photoUrl || null,
+      handedByUid: uid,
+      handedByName: userData.fullName || '',
+      handedByRole: userData.role || '',
+      handedToName: handedToName.trim(),
+      roomNumber: item.roomNumber || '',
+      roomLabel: item.roomLabel || '',
+      collectLocation: item.collectLocation || '',
+      handedAt,
+      createdAt: handedAt,
+    });
+
+    
+    const tokens = await getAllUserTokens(admin.firestore(), uid);
+
+    await sendPushNotification(
+      tokens,
+      'Lost & Found — Item Collected',
+      `${userData.fullName || 'Someone'} handed "${item.itemName}" over to ${handedToName.trim()}.`,
+      { type: 'item_handed_over', itemId }
+    );
 
     sendSuccess(res, { message: 'Item marked as handed over successfully.' });
   } catch (error) {
@@ -121,4 +151,19 @@ const myPosts = async (req, res) => {
   }
 };
 
-module.exports = { post, feed, handover, myPosts };
+const claims = async (req, res) => {
+  try {
+    const snapshot = await admin.firestore()
+      .collection('claims')
+      .orderBy('createdAt', 'desc')
+      .get();
+
+    const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    sendSuccess(res, { items });
+  } catch (error) {
+    sendError(res, error.message);
+  }
+};
+
+module.exports = { post, feed, handover, myPosts, claims };

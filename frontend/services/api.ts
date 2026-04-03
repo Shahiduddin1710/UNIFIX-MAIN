@@ -121,10 +121,13 @@ export const complaintsAPI = {
   staffComplaints: () => get("/complaints/staff-complaints"),
 };
 
+
 export const lostFoundAPI = {
   feed: () => get("/lost-found/feed"),
 
   myPosts: () => get("/lost-found/my-posts"),
+
+  claims: () => get("/lost-found/claims"),
 
   postItem: (payload: {
     itemName: string;

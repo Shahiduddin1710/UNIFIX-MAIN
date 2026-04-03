@@ -6,7 +6,7 @@ import {
 import { useState, useEffect, useCallback, useRef } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, updateDoc, collection, query, where, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import * as ImagePicker from "expo-image-picker";
 import * as Notifications from "expo-notifications";
 import { Ionicons } from "@expo/vector-icons";
@@ -68,6 +68,13 @@ type LostItem = {
   roomNumber: string; roomLabel: string; collectLocation: string;
   photoUrl?: string | null; postedByName: string; createdAt: any;
   status: string; isMyPost: boolean; handedToName?: string; handedAt?: any;
+};
+
+type ClaimItem = {
+  id: string; itemName: string; photoUrl: string | null;
+  handedByName: string; handedByRole: string;
+  handedToName: string; roomNumber: string; roomLabel: string;
+  collectLocation: string; handedAt: any;
 };
 
 type StaffData = {
@@ -167,6 +174,7 @@ export default function StaffDashboardScreen() {
   const [allComplaints, setAllComplaints]   = useState<Complaint[]>([]);
   const [feedItems, setFeedItems]           = useState<LostItem[]>([]);
   const [myPosts, setMyPosts]               = useState<LostItem[]>([]);
+  const [claimItems, setClaimItems] = useState<ClaimItem[]>([]);
   const [staffData, setStaffData]           = useState<StaffData | null>(null);
   const [staffUid, setStaffUid]             = useState<string | null>(null);
   const [loading, setLoading]               = useState(true);
@@ -175,7 +183,7 @@ export default function StaffDashboardScreen() {
   const [ratingCount, setRatingCount]       = useState(0);
   const [activeTab, setActiveTab]           = useState<TabType>("tasks");
   const [profileScreen, setProfileScreen]   = useState<ProfileScreen>("main");
-  const [lostFoundTab, setLostFoundTab]     = useState<"feed" | "myposts">("feed");
+  const [lostFoundTab, setLostFoundTab] = useState<"feed" | "myposts" | "claims">("feed");
   const [actionLoading, setActionLoading]   = useState<string | null>(null);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [detailVisible, setDetailVisible]   = useState(false);
@@ -270,13 +278,36 @@ export default function StaffDashboardScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  const fetchLostFound = useCallback(async () => {
-    try {
-      const [feedData, myData] = await Promise.all([lostFoundAPI.feed(), lostFoundAPI.myPosts()]);
-      setFeedItems(feedData.items || []);
-      setMyPosts(myData.items || []);
-    } catch {}
-  }, []);
+
+const lfUnsubRef = useRef<(() => void)[]>([]);
+
+const fetchLostFound = useCallback((uid: string) => {
+  lfUnsubRef.current.forEach(fn => fn());
+  lfUnsubRef.current = [];
+
+  const unsubFeed = onSnapshot(
+    query(collection(db, "lostFound"), where("status", "==", "available"), orderBy("createdAt", "desc")),
+    (snap) => {
+      setFeedItems(snap.docs.map(d => ({ id: d.id, ...d.data() as any, isMyPost: d.data().postedBy === uid })));
+    }
+  );
+
+  const unsubMyPosts = onSnapshot(
+    query(collection(db, "lostFound"), where("postedBy", "==", uid), orderBy("createdAt", "desc")),
+    (snap) => {
+      setMyPosts(snap.docs.map(d => ({ id: d.id, ...d.data() as any, isMyPost: true })));
+    }
+  );
+
+  const unsubClaims = onSnapshot(
+    query(collection(db, "claims"), orderBy("createdAt", "desc")),
+    (snap) => {
+      setClaimItems(snap.docs.map(d => ({ id: d.id, ...d.data() as any })));
+    }
+  );
+
+  lfUnsubRef.current = [unsubFeed, unsubMyPosts, unsubClaims];
+}, []);
 
   const registerPushToken = useCallback(async () => {
     try {
@@ -287,21 +318,23 @@ export default function StaffDashboardScreen() {
     } catch {}
   }, []);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!u) { router.replace("/login" as any); return; }
-      setStaffUid(u.uid);
-      const snap = await getDoc(doc(db, "users", u.uid));
-      if (snap.exists()) setStaffData(snap.data() as StaffData);
-      subscribeToComplaints(u.uid);
-      fetchLostFound();
-      registerPushToken();
-    });
-    return () => {
-      unsub();
-      if (unsubRef.current) unsubRef.current();
-    };
-  }, []);
+
+useEffect(() => {
+  const unsub = onAuthStateChanged(auth, async (u) => {
+    if (!u) { router.replace("/login" as any); return; }
+    setStaffUid(u.uid);
+    const snap = await getDoc(doc(db, "users", u.uid));
+    if (snap.exists()) setStaffData(snap.data() as StaffData);
+    subscribeToComplaints(u.uid);
+    fetchLostFound(u.uid);
+    registerPushToken();
+  });
+  return () => {
+    unsub();
+    if (unsubRef.current) unsubRef.current();
+    lfUnsubRef.current.forEach(fn => fn());
+  };
+}, []);
 
   useEffect(() => {
     if (openComplaintId) {
@@ -327,18 +360,24 @@ export default function StaffDashboardScreen() {
     }
   }, [openTab]);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    if (staffUid) refetchAll(staffUid);
-    fetchLostFound();
-  };
+// WITH THIS:
+const onRefresh = () => {
+  setRefreshing(true);
+  if (staffUid) refetchAll(staffUid);
+};
 
   const handleCall = (phone?: string) => {
     if (!phone?.trim()) { showToast("No phone number available.", "info"); return; }
     Linking.openURL(`tel:${phone.trim()}`);
   };
 
-  const handleAccept = async (complaintId: string) => {
+const handleAccept = async (complaintId: string) => {
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const hour = nowIST.getUTCHours();
+    if (hour < 8 || hour >= 20) {
+      showToast("Actions only allowed between 8 AM – 8 PM.", "error");
+      return;
+    }
     setActionLoading(complaintId);
     try {
       await complaintsAPI.accept(complaintId);
@@ -353,9 +392,15 @@ export default function StaffDashboardScreen() {
     setRejectTarget(complaintId); setRejectReason(""); setDetailVisible(false); setRejectVisible(true);
   };
 
-  const handleReject = async () => {
+ const handleReject = async () => {
     if (!rejectReason.trim()) { showToast("Please enter a rejection reason.", "error"); return; }
     if (!rejectTarget) return;
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const hour = nowIST.getUTCHours();
+    if (hour < 8 || hour >= 20) {
+      showToast("Actions only allowed between 8 AM - 8 PM.", "error");
+      return;
+    }
     setActionLoading(rejectTarget);
     try {
       await complaintsAPI.reject(rejectTarget, rejectReason.trim());
@@ -367,7 +412,13 @@ export default function StaffDashboardScreen() {
     } finally { setActionLoading(null); }
   };
 
-  const handleUpdateStatus = async (complaintId: string, status: string) => {
+const handleUpdateStatus = async (complaintId: string, status: string) => {
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const hour = nowIST.getUTCHours();
+    if (hour < 8 || hour >= 20) {
+      showToast("Actions only allowed between 8 AM – 8 PM.", "error");
+      return;
+    }
     setActionLoading(complaintId);
     try {
       await complaintsAPI.updateStatus(complaintId, status);
@@ -378,20 +429,19 @@ export default function StaffDashboardScreen() {
     } finally { setActionLoading(null); }
   };
 
-  const handleHandover = async () => {
-    if (!handedToName.trim()) { setHandoverError("Please enter the name."); return; }
-    if (!handoverItem) return;
-    setHandoverLoading(true);
-    try {
-      await lostFoundAPI.handover(handoverItem.id, handedToName.trim());
-      setFeedItems(prev => prev.filter(i => i.id !== handoverItem.id));
-      setHandoverItem(null);
-      fetchLostFound();
-    } catch (err: any) {
-      setHandoverError(err.message || "Failed.");
-    } finally { setHandoverLoading(false); }
-  };
-
+const handleHandover = async () => {
+  if (!handedToName.trim()) { setHandoverError("Please enter the name."); return; }
+  if (!handoverItem) return;
+  setHandoverLoading(true);
+  try {
+    await lostFoundAPI.handover(handoverItem.id, handedToName.trim());
+    setFeedItems(prev => prev.filter(i => i.id !== handoverItem.id));
+    setHandoverItem(null);
+    if (staffUid) fetchLostFound(staffUid); 
+  } catch (err: any) {
+    setHandoverError(err.message || "Failed.");
+  } finally { setHandoverLoading(false); }
+};
   const handlePickPhoto = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -638,7 +688,7 @@ export default function StaffDashboardScreen() {
           {item.collectLocation ? (<View style={s.lfMetaRow}><Ionicons name="pin-outline" size={13} color="#16a34a" /><Text style={s.lfCollectText}>Collect from: {item.collectLocation}</Text></View>) : null}
           {isHandedOver ? (
             <View style={s.lfHandedBox}>
-              <Ionicons name="hand-left-outline" size={20} color="#16a34a" />
+             <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
               <View style={{ flex: 1 }}>
                 <Text style={s.lfHandedName}>Handed to {item.handedToName}</Text>
                 <Text style={s.lfHandedDate}>{formatDate(item.handedAt)}</Text>
@@ -857,19 +907,72 @@ export default function StaffDashboardScreen() {
             <TouchableOpacity style={s.lfPageAddBtn} onPress={() => router.push("/post-found-item" as any)}><Ionicons name="add" size={22} color="#fff" /></TouchableOpacity>
           </View>
           <View style={s.lfSegmentRow}>
-            <TouchableOpacity style={[s.lfSegBtn, lostFoundTab === "feed" && s.lfSegBtnActive]} onPress={() => setLostFoundTab("feed")}><Text style={[s.lfSegBtnText, lostFoundTab === "feed" && s.lfSegBtnTextActive]}>All Items</Text></TouchableOpacity>
-            <TouchableOpacity style={[s.lfSegBtn, lostFoundTab === "myposts" && s.lfSegBtnActive]} onPress={() => setLostFoundTab("myposts")}><Text style={[s.lfSegBtnText, lostFoundTab === "myposts" && s.lfSegBtnTextActive]}>My Posts</Text></TouchableOpacity>
-          </View>
+  {(["feed", "myposts", "claims"] as const).map((tab) => (
+    <TouchableOpacity
+      key={tab}
+      style={[s.lfSegBtn, lostFoundTab === tab && s.lfSegBtnActive]}
+      onPress={() => setLostFoundTab(tab)}
+    >
+      <Text style={[s.lfSegBtnText, lostFoundTab === tab && s.lfSegBtnTextActive]}>
+        {tab === "feed" ? "All Items" : tab === "myposts" ? "My Posts" : "Claims"}
+      </Text>
+    </TouchableOpacity>
+  ))}
+</View>
           <ScrollView contentContainerStyle={[s.lfContainer, { paddingBottom: bottomNavHeight + 20 }]} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#16a34a"]} />}>
-            {lostFoundTab === "feed" && (feedItems.length === 0 ? (
-              <View style={s.lfEmptyState}><View style={s.lfEmptyIconWrap}><Ionicons name="search-outline" size={36} color="#16a34a" /></View><Text style={s.lfEmptyTitle}>No items posted yet</Text><TouchableOpacity style={s.lfPostBtn} onPress={() => router.push("/post-found-item" as any)}><Text style={s.lfPostBtnText}>Post Found Item</Text></TouchableOpacity></View>
-            ) : feedItems.map(renderLostFoundCard))}
-            {lostFoundTab === "myposts" && (myPosts.length === 0 ? (
-              <View style={s.lfEmptyState}><View style={s.lfEmptyIconWrap}><Ionicons name="cube-outline" size={36} color="#16a34a" /></View><Text style={s.lfEmptyTitle}>No posts yet</Text><TouchableOpacity style={s.lfPostBtn} onPress={() => router.push("/post-found-item" as any)}><Text style={s.lfPostBtnText}>Post Found Item</Text></TouchableOpacity></View>
-            ) : myPosts.map(renderLostFoundCard))}
-          </ScrollView>
+  {lostFoundTab === "feed" && (feedItems.length === 0 ? (
+    <View style={s.lfEmptyState}><View style={s.lfEmptyIconWrap}><Ionicons name="search-outline" size={36} color="#16a34a" /></View><Text style={s.lfEmptyTitle}>No items posted yet</Text><TouchableOpacity style={s.lfPostBtn} onPress={() => router.push("/post-found-item" as any)}><Text style={s.lfPostBtnText}>Post Found Item</Text></TouchableOpacity></View>
+  ) : feedItems.map(renderLostFoundCard))}
+  {lostFoundTab === "myposts" && (myPosts.length === 0 ? (
+    <View style={s.lfEmptyState}><View style={s.lfEmptyIconWrap}><Ionicons name="cube-outline" size={36} color="#16a34a" /></View><Text style={s.lfEmptyTitle}>No posts yet</Text><TouchableOpacity style={s.lfPostBtn} onPress={() => router.push("/post-found-item" as any)}><Text style={s.lfPostBtnText}>Post Found Item</Text></TouchableOpacity></View>
+  ) : myPosts.map(renderLostFoundCard))}
+  {lostFoundTab === "claims" && (claimItems.length === 0 ? (
+    <View style={s.lfEmptyState}>
+      <View style={s.lfEmptyIconWrap}><Ionicons name="hand-left-outline" size={36} color="#16a34a" /></View>
+      <Text style={s.lfEmptyTitle}>No claims yet</Text>
+    </View>
+  ) :claimItems.map((item) => (
+    <View key={item.id} style={s.lfCard}>
+      <View style={s.lfCardHeader}>
+        <View style={[s.lfAvatar, { width: 42, height: 42, borderRadius: 12 }]}>
+          <Ionicons name="checkmark-circle-outline" size={20} color="#16a34a" />
         </View>
-      )}
+        <View style={{ flex: 1 }}>
+          <Text style={s.lfTitle}>{item.itemName}</Text>
+          <Text style={s.lfDesc}>
+            <Text style={{ color: "#94a3b8" }}>Handed by </Text>
+            <Text style={{ fontWeight: "700", color: "#0f172a" }}>{item.handedByName}</Text>
+            {item.handedByRole ? <Text style={{ color: "#64748b" }}> ({item.handedByRole})</Text> : null}
+          </Text>
+          <Text style={s.lfDesc}>
+            <Text style={{ color: "#94a3b8" }}>Collected by </Text>
+            <Text style={{ fontWeight: "700", color: "#0f172a" }}>{item.handedToName}</Text>
+          </Text>
+          {item.roomNumber ? (
+            <View style={s.lfMetaRow}>
+              <Ionicons name="location-outline" size={12} color="#64748b" />
+              <Text style={s.lfLocationText}>Room {item.roomNumber}{item.roomLabel ? ` — ${item.roomLabel}` : ""}</Text>
+            </View>
+          ) : null}
+          {item.collectLocation ? (
+            <View style={s.lfMetaRow}>
+              <Ionicons name="pin-outline" size={12} color="#16a34a" />
+              <Text style={s.lfCollectText}>Handed at: {item.collectLocation}</Text>
+            </View>
+          ) : null}
+          <Text style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{formatDate(item.handedAt)}</Text>
+        </View>
+        {item.photoUrl ? (
+          <TouchableOpacity onPress={() => setImageViewerUri(item.photoUrl!)} activeOpacity={0.9}>
+            <Image source={{ uri: item.photoUrl }} style={{ width: 56, height: 56, borderRadius: 10 }} resizeMode="cover" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  )))}
+</ScrollView>
+</View>
+)}
 
       {activeTab === "history" && (
         <ScrollView style={s.tabScroll} contentContainerStyle={[s.tabContainer, { paddingBottom: bottomNavHeight + 20 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#16a34a"]} />}>
@@ -966,10 +1069,7 @@ export default function StaffDashboardScreen() {
                     <TouchableOpacity style={s.acceptActionBtn} onPress={() => handleAccept(selectedComplaint.id)} disabled={!!actionLoading}>
                       {actionLoading === selectedComplaint.id ? <ActivityIndicator color="#fff" /> : <Text style={s.acceptActionBtnText}>Accept Request</Text>}
                     </TouchableOpacity>
-                    <View style={{ flexDirection: "row", gap: 10 }}>
-                      <TouchableOpacity style={s.inProgressActionBtn} onPress={() => handleUpdateStatus(selectedComplaint.id, "in_progress")} disabled={!!actionLoading}><Text style={s.inProgressText}>In Progress</Text></TouchableOpacity>
-                      <TouchableOpacity style={s.completeActionBtn} onPress={() => handleUpdateStatus(selectedComplaint.id, "completed")} disabled={!!actionLoading}><Text style={s.completeText}>Complete</Text></TouchableOpacity>
-                    </View>
+                 
                     <TouchableOpacity style={s.rejectActionBtn} onPress={() => openRejectModal(selectedComplaint.id)} disabled={!!actionLoading}><Text style={s.rejectActionText}>Reject</Text></TouchableOpacity>
                   </>
                 )}
