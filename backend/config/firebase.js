@@ -2,16 +2,16 @@ const admin = require('firebase-admin');
 
 let serviceAccount;
 
-// For Vercel: read from environment variable
+
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   
-  // Fix private_key newline issue (Vercel escapes \n as \\n)
+
   if (serviceAccount.private_key) {
     serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
   }
 } else {
-  // For local development: read from file
+
   try {
     serviceAccount = require('../serviceAccountKey.json');
   } catch {
