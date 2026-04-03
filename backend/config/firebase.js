@@ -1,11 +1,23 @@
 const admin = require('firebase-admin');
 
 let serviceAccount;
-try {
-  serviceAccount = require('../serviceAccountKey.json');
-} catch {
-  console.error('serviceAccountKey.json not found. Exiting.');
-  process.exit(1);
+
+// For Vercel: read from environment variable
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  
+  // Fix private_key newline issue (Vercel escapes \n as \\n)
+  if (serviceAccount.private_key) {
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+  }
+} else {
+  // For local development: read from file
+  try {
+    serviceAccount = require('../serviceAccountKey.json');
+  } catch {
+    console.error('serviceAccountKey.json not found and FIREBASE_SERVICE_ACCOUNT env not set. Exiting.');
+    process.exit(1);
+  }
 }
 
 if (!admin.apps.length) {

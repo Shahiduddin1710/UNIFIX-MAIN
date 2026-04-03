@@ -1,5 +1,3 @@
-const axios = require('axios');
-
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 const sendPushNotification = async (expoPushTokens, title, body, data = {}) => {
@@ -10,7 +8,10 @@ const sendPushNotification = async (expoPushTokens, title, body, data = {}) => {
       t => t && typeof t === 'string' && t.startsWith('ExponentPushToken')
     );
 
-    if (!validTokens.length) return;
+    if (!validTokens.length) {
+      console.log('No valid Expo push tokens found');
+      return;
+    }
 
     const messages = validTokens.map(token => ({
       to: token,
@@ -26,13 +27,17 @@ const sendPushNotification = async (expoPushTokens, title, body, data = {}) => {
     }));
 
     for (let i = 0; i < messages.length; i += 100) {
-      await axios.post(EXPO_PUSH_URL, messages.slice(i, i + 100), {
+      const batch = messages.slice(i, i + 100);
+      const response = await fetch(EXPO_PUSH_URL, {
+        method: 'POST',
         headers: {
-          Accept: 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(batch),
       });
+      const result = await response.json();
+      console.log('Expo push result:', JSON.stringify(result));
     }
   } catch (error) {
     console.error('Push notification error:', error.message);
@@ -86,7 +91,6 @@ const getAllUserTokens = async (db, excludeUid = null) => {
 
   snapshot.forEach(doc => {
     if (excludeUid && doc.id === excludeUid) return;
-
     const data = doc.data();
     tokens.push(...extractTokens(data));
   });
@@ -108,7 +112,6 @@ const getTokensByRole = async (db, roles = [], excludeUid = null) => {
 
     snapshot.forEach(doc => {
       if (excludeUid && doc.id === excludeUid) return;
-
       const data = doc.data();
       tokens.push(...extractTokens(data));
     });
@@ -133,7 +136,6 @@ const getTokensByDesignation = async (db, designation, excludeUid = null, gender
 
   snapshot.forEach(doc => {
     if (excludeUid && doc.id === excludeUid) return;
-
     const data = doc.data();
     tokens.push(...extractTokens(data));
   });
@@ -144,7 +146,6 @@ const getTokensByDesignation = async (db, designation, excludeUid = null, gender
 const getTokenForUid = async (db, uid) => {
   const doc = await db.collection('users').doc(uid).get();
   if (!doc.exists) return [];
-
   return extractTokens(doc.data());
 };
 

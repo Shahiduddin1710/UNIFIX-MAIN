@@ -29,7 +29,10 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      ["expo-image-picker", {
+        "cameraPermission": "Allow UniFix to access your camera to upload photos."
+      }]
     ],
     "experiments": {
       "typedRoutes": true
