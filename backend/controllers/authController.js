@@ -191,7 +191,7 @@ const login = async (req, res) => {
       lastLogin: admin.firestore.Timestamp.now(),
     });
 
-    sendSuccess(res, {
+sendSuccess(res, {
       message: 'Login successful',
       uid: user.uid,
       token,
@@ -201,8 +201,10 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
         profileCompleted: user.profileCompleted || false,
+        verificationStatus: user.verificationStatus || null,
       },
     });
+
   } catch (error) {
     sendError(res, error.message);
   }

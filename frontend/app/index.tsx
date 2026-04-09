@@ -319,6 +319,7 @@ useEffect(() => {
   const unsub = onAuthStateChanged(auth, async (u) => {
     if (!u) return;
     try {
+      await u.getIdToken(true);
       const snap = await getDoc(doc(db, "users", u.uid));
       if (!snap.exists()) return;
       setUserData(snap.data() as UserData);

@@ -20,31 +20,32 @@ export default function LoginScreen() {
   const [resetMessage, setResetMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = async () => {
-    setError("");
-    setResetMessage("");
-    if (!email.trim()) return setError("Please enter your email.");
-    if (!password) return setError("Please enter your password.");
-    setLoading(true);
-    try {
-      const data = await authAPI.login(email.trim(), password);
-      await signInWithCustomToken(auth, data.token);
-      const snap = await getDoc(doc(db, "users", data.user.uid));
-      if (!snap.exists()) { setError("User record not found."); await auth.signOut(); return; }
-      const userData = snap.data();
-      if (userData.role === "staff" && userData.verificationStatus === "approved") {
-        router.replace("/staff-dashboard");
-      } else if (userData.profileCompleted) {
-        router.replace("/");
-      } else {
-        router.replace("/complete-profile");
-      }
-    } catch (err: any) {
-      setError(err.message || "Login failed. Please try again.");
-    } finally {
-      setLoading(false);
+const handleLogin = async () => {
+  setError("");
+  setResetMessage("");
+  if (!email.trim()) return setError("Please enter your email.");
+  if (!password) return setError("Please enter your password.");
+  setLoading(true);
+  try {
+    const data = await authAPI.login(email.trim(), password);
+    await signInWithCustomToken(auth, data.token);
+
+   
+    const userData = data.user;
+
+    if (userData.role === "staff" && userData.verificationStatus === "approved") {
+      router.replace("/staff-dashboard");
+    } else if (userData.profileCompleted) {
+      router.replace("/");
+    } else {
+      router.replace("/complete-profile");
     }
-  };
+  } catch (err: any) {
+    setError(err.message || "Login failed. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleForgotPassword = async () => {
     setError("");

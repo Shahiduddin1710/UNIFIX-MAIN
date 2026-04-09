@@ -84,7 +84,10 @@ export default function RootLayout() {
           setAppReady(true);
           return;
         }
+        await firebaseUser.getIdToken(true);
         const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+
+        
         if (!snap.exists() || !snap.data()?.profileCompleted) {
           setInitialRoute("/complete-profile");
           setAppReady(true);
