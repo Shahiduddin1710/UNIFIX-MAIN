@@ -1,7 +1,16 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { adminAPI } from '../services/api'
-import { Mail, Lock, Eye, EyeOff, AlertCircle, ArrowRight, Loader2, ShieldCheck } from 'lucide-react'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { adminAPI } from "../services/api";
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  ArrowRight,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&display=swap');
@@ -41,12 +50,13 @@ const css = `
 
   .login-brand { display: flex; align-items: center; gap: 13px; }
 
-  .login-brand-mark {
-    width: 42px; height: 42px; border-radius: 11px;
-    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
+.login-brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: transparent; 
+  overflow: hidden;
+}
 
   .login-brand-mark span {
     font-size: 15px; font-weight: 900; color: #fff; letter-spacing: -1px;
@@ -167,31 +177,32 @@ const css = `
     .login-right { padding: 24px 20px; }
     .login-card { padding: 32px 24px; }
   }
-`
+`;
 
 export default function Login() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [showPass, setShowPass] = useState(false)
-  const navigate = useNavigate()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
-    e.preventDefault()
-    setError('')
-    if (!email.trim() || !password.trim()) return setError('Email and password are required.')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    if (!email.trim() || !password.trim())
+      return setError("Email and password are required.");
+    setLoading(true);
     try {
-      const res = await adminAPI.login(email, password)
-      localStorage.setItem('unifix_admin_token', res.data.token)
-      navigate('/')
+      const res = await adminAPI.login(email, password);
+      localStorage.setItem("unifix_admin_token", res.data.token);
+      navigate("/");
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Please try again.')
+      setError(err.response?.data?.error || "Login failed. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <>
@@ -201,7 +212,18 @@ export default function Login() {
           <div className="login-left-grid" />
           <div className="login-left-inner">
             <div className="login-brand">
-              <div className="login-brand-mark"><span>UF</span></div>
+              <div className="login-brand-mark">
+                <img
+                  src="/logo192.png"
+                  alt="logo"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: "11px",
+                  }}
+                />
+              </div>
               <div>
                 <div className="login-brand-name">UniFiX</div>
                 <div className="login-brand-sub">Admin Portal</div>
@@ -209,35 +231,40 @@ export default function Login() {
             </div>
 
             <div className="login-hero">
-              <div className="login-hero-tag">VCET Campus Management</div>
+              <div className="login-hero-tag">Campus Management</div>
               <h1 className="login-hero-title">
-                Campus at your<br /><span>fingertips.</span>
+                CAMPUS CARE AT YOUR
+                <br />
+                <span>FINGERTIPS.</span>
               </h1>
               <p className="login-hero-desc">
-                Manage staff verifications, track complaints in real-time, and oversee campus operations from one unified dashboard.
+                Manage staff verifications, track complaints in real-time, and
+                oversee campus operations from one unified dashboard.
               </p>
             </div>
-
-           
           </div>
         </div>
 
         <div className="login-right">
           <div className="login-card">
             <div className="login-card-title">Sign in</div>
-            <div className="login-card-sub">Enter your admin credentials to continue</div>
+            <div className="login-card-sub">
+              Enter your admin credentials to continue
+            </div>
 
             <form className="login-form" onSubmit={handleLogin}>
               <div className="login-field">
                 <label className="login-label">Email Address</label>
                 <div className="login-input-wrap">
-                  <span className="login-input-icon"><Mail size={15} /></span>
+                  <span className="login-input-icon">
+                    <Mail size={15} />
+                  </span>
                   <input
                     className="login-input"
                     type="email"
                     placeholder="admin@vcet.edu.in"
                     value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
                   />
                 </div>
@@ -246,17 +273,23 @@ export default function Login() {
               <div className="login-field">
                 <label className="login-label">Password</label>
                 <div className="login-input-wrap">
-                  <span className="login-input-icon"><Lock size={15} /></span>
+                  <span className="login-input-icon">
+                    <Lock size={15} />
+                  </span>
                   <input
                     className="login-input"
                     style={{ paddingRight: 44 }}
-                    type={showPass ? 'text' : 'password'}
+                    type={showPass ? "text" : "password"}
                     placeholder="Enter your password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
                   />
-                  <button type="button" className="login-eye-btn" onClick={() => setShowPass(p => !p)}>
+                  <button
+                    type="button"
+                    className="login-eye-btn"
+                    onClick={() => setShowPass((p) => !p)}
+                  >
                     {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
@@ -270,9 +303,15 @@ export default function Login() {
               )}
 
               <button type="submit" className="login-submit" disabled={loading}>
-                {loading
-                  ? <><Loader2 size={16} className="spin" /> Signing in…</>
-                  : <>Sign In <ArrowRight size={16} /></>}
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="spin" /> Signing in…
+                  </>
+                ) : (
+                  <>
+                    Sign In <ArrowRight size={16} />
+                  </>
+                )}
               </button>
             </form>
 
@@ -284,5 +323,5 @@ export default function Login() {
         </div>
       </div>
     </>
-  )
+  );
 }

@@ -41,11 +41,13 @@ const css = `
 
   .sd-brand { display: flex; align-items: center; gap: 9px; }
 
-  .sd-brand-mark {
-    width: 30px; height: 30px; border-radius: 8px;
-    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
-    display: flex; align-items: center; justify-content: center;
-  }
+.sd-brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: transparent;
+  overflow: hidden;
+} 
 
   .sd-brand-mark span { font-size: 11px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
   .sd-brand-name { font-size: 14px; font-weight: 700; color: #0f172a; }
@@ -414,7 +416,13 @@ export default function StaffDetail() {
             </button>
             <div className="sd-divider" />
             <div className="sd-brand">
-              <div className="sd-brand-mark"><span>UF</span></div>
+              <div className="sd-brand-mark">
+  <img 
+    src="/logo192.png" 
+    alt="logo"
+    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+  />
+</div>
               <span className="sd-brand-name">UniFiX Admin</span>
             </div>
           </div>

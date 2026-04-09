@@ -9,7 +9,7 @@ import {
   Zap, Droplets, Hammer, Sparkles, Monitor, Shield, Bath,
   FileText, Eye, IdCard, User, GraduationCap, BookUser,
   ArrowRight, AlertCircle, Lock, CheckCheck,
-  MapPin, Pin, HandMetal, Package, PackageCheck,  
+  MapPin, Pin, HandMetal, Package, PackageCheck, Menu,
 } from 'lucide-react'
 
 const CATEGORY = {
@@ -65,7 +65,35 @@ const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; }
   .unifix-root { display: flex; min-height: 100vh; background: #f4f6f8; font-family: 'DM Sans', sans-serif; }
-  .sidebar { width: 228px; flex-shrink: 0; background: #0f172a; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 20; }
+
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,0.55);
+    z-index: 19;
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .sidebar-overlay.visible {
+    opacity: 1;
+  }
+
+  .sidebar {
+    width: 228px;
+    flex-shrink: 0;
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 20;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
   .sidebar-logo { padding: 22px 18px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 11px; }
   .sidebar-logo-mark { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .sidebar-logo-mark span { font-size: 16px; font-weight: 900; color: #fff; letter-spacing: -1px; }
@@ -83,12 +111,50 @@ const css = `
   .sidebar-footer { padding: 12px 10px 16px; border-top: 1px solid rgba(255,255,255,0.06); }
   .logout-btn { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 9px; border: none; background: rgba(220,38,38,0.1); color: #f87171; font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
   .logout-btn:hover { background: rgba(220,38,38,0.18); color: #fca5a5; }
+
   .main-area { flex: 1; margin-left: 228px; display: flex; flex-direction: column; min-height: 100vh; }
   .topbar { height: 58px; background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; flex-shrink: 0; position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #e9ecef; }
   .topbar-title { font-size: 14px; font-weight: 700; color: #0f172a; letter-spacing: -0.2px; }
   .topbar-sub { font-size: 12px; color: #94a3b8; margin-top: 1px; }
+
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+
+  .hamburger-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .hamburger-btn:hover { background: #f0fdf4; border-color: #16a34a; color: #16a34a; }
+
+  .sidebar-close-btn {
+    display: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: rgba(255,255,255,0.08);
+    border: none;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.6);
+    margin-left: auto;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .sidebar-close-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
   .refresh-btn { display: flex; align-items: center; gap: 7px; background: #f8fafc; color: #475569; border: 1.5px solid #e2e8f0; border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
   .refresh-btn:hover { background: #f0fdf4; border-color: #16a34a; color: #16a34a; }
+  .refresh-btn-text { display: inline; }
   .spin { animation: spin 0.8s linear infinite; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   .page-content { flex: 1; padding: 28px; overflow: auto; }
@@ -272,8 +338,82 @@ const css = `
   .lf-desc { font-size: 12px; color: #64748b; line-height: 1.55; margin-bottom: 8px; }
   .lf-img-badge-wrap { position: relative; }
   .lf-img-badge { position: absolute; top: 10px; right: 10px; }
-  @media (max-width: 1200px) { .stat-grid-6 { grid-template-columns: repeat(3,1fr); } .detail-panels { grid-template-columns: 1fr 1fr; } .stat-grid-3 { grid-template-columns: repeat(2,1fr); } }
-  @media (max-width: 900px) { .stat-grid-6 { grid-template-columns: repeat(2,1fr); } .two-col { grid-template-columns: 1fr; } .stat-grid-4 { grid-template-columns: repeat(2,1fr); } .stat-grid-3 { grid-template-columns: 1fr; } }
+
+  @media (max-width: 1200px) {
+    .stat-grid-6 { grid-template-columns: repeat(3,1fr); }
+    .detail-panels { grid-template-columns: 1fr 1fr; }
+    .stat-grid-3 { grid-template-columns: repeat(2,1fr); }
+  }
+  @media (max-width: 900px) {
+    .stat-grid-6 { grid-template-columns: repeat(2,1fr); }
+    .two-col { grid-template-columns: 1fr; }
+    .stat-grid-4 { grid-template-columns: repeat(2,1fr); }
+    .stat-grid-3 { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 768px) {
+    .sidebar-overlay { display: block; pointer-events: none; }
+    .sidebar-overlay.visible { pointer-events: all; }
+
+    .sidebar {
+      transform: translateX(-100%);
+      box-shadow: none;
+    }
+    .sidebar.open {
+      transform: translateX(0);
+      box-shadow: 8px 0 32px rgba(0,0,0,0.25);
+    }
+
+    .sidebar-close-btn { display: flex; }
+
+    .main-area { margin-left: 0; }
+
+    .hamburger-btn { display: flex; }
+
+    .topbar { padding: 0 16px; }
+
+    .page-content { padding: 16px; }
+
+    .section-title { font-size: 17px; }
+
+    .stat-grid-6 { grid-template-columns: repeat(2,1fr); gap: 10px; }
+    .stat-grid-4 { grid-template-columns: repeat(2,1fr); gap: 10px; }
+    .stat-grid-3 { grid-template-columns: repeat(2,1fr); gap: 10px; }
+
+    .stat-value { font-size: 24px; }
+
+    .detail-panels { grid-template-columns: 1fr; }
+
+    .pending-grid { grid-template-columns: 1fr; }
+
+    .staff-grid { grid-template-columns: 1fr; }
+    .user-grid { grid-template-columns: 1fr; }
+    .lf-grid { grid-template-columns: 1fr; }
+
+    .two-col { grid-template-columns: 1fr; }
+
+    .card { border-radius: 12px; }
+
+    .modal { border-radius: 16px; }
+
+    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    .alert-row { flex-direction: column; }
+    .alert-card { width: 100%; }
+
+    .refresh-btn-text { display: none; }
+
+    .topbar-title { font-size: 13px; }
+  }
+
+  @media (max-width: 480px) {
+    .stat-grid-6 { grid-template-columns: 1fr 1fr; }
+    .stat-grid-4 { grid-template-columns: 1fr 1fr; }
+    .stat-grid-3 { grid-template-columns: 1fr; }
+    .filter-tabs { gap: 5px; }
+    .filter-tab { padding: 6px 10px; font-size: 11px; }
+    .page-content { padding: 12px; }
+  }
 `
 
 const StatusBadge = memo(({ status, verification }) => {
@@ -308,6 +448,7 @@ function SectionHeader({ title, subtitle }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const [section, setSection]           = useState('overview')
+  const [sidebarOpen, setSidebarOpen]   = useState(false)
   const [staff, setStaff]               = useState([])
   const [complaints, setComplaints]     = useState([])
   const [users, setUsers]               = useState([])
@@ -325,6 +466,22 @@ export default function Dashboard() {
   const [idCardRequests, setIdCardRequests]     = useState([])
   const [deletionRequests, setDeletionRequests] = useState({ staffRequests: [], userDeletions: [] })
   const [securityIssues, setSecurityIssues]     = useState([])
+
+  const closeSidebar = useCallback(() => setSidebarOpen(false), [])
+
+  const handleNavClick = useCallback((key) => {
+    setSection(key)
+    setSidebarOpen(false)
+  }, [])
+
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [sidebarOpen])
 
   const fetchAll = useCallback(async () => {
     setLoading(true); setError('')
@@ -415,25 +572,32 @@ export default function Dashboard() {
     <>
       <style>{css}</style>
       <div className="unifix-root">
-        <aside className="sidebar">
-        
-           <div className="sidebar-logo">
-  <img
-    src={logo}
-    alt="UniFiX"
-    style={{ width: 42, height: 42, objectFit: 'contain', flexShrink: 0 }}
-  />
-  <div>
-    <div className="sidebar-logo-name">UniFiX</div>
-    <div className="sidebar-logo-sub">Admin Panel</div>
-  </div>
-</div>
+        <div
+          className={`sidebar-overlay${sidebarOpen ? ' visible' : ''}`}
+          onClick={closeSidebar}
+        />
+
+        <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
+          <div className="sidebar-logo">
+            <img
+              src={logo}
+              alt="UniFiX"
+              style={{ width: 42, height: 42, objectFit: 'contain', flexShrink: 0 }}
+            />
+            <div style={{ flex: 1 }}>
+              <div className="sidebar-logo-name">UniFiX</div>
+              <div className="sidebar-logo-sub">Admin Panel</div>
+            </div>
+            <button className="sidebar-close-btn" onClick={closeSidebar}>
+              <X size={14} />
+            </button>
+          </div>
           <nav className="sidebar-nav">
             {NAV_SECTIONS.map(sec => (
               <div key={sec.label}>
                 <div className="sidebar-section-label">{sec.label}</div>
                 {sec.items.map(({ key, Icon, label, badge }) => (
-                  <button key={key} className={`nav-btn${section === key ? ' active' : ''}`} onClick={() => setSection(key)}>
+                  <button key={key} className={`nav-btn${section === key ? ' active' : ''}`} onClick={() => handleNavClick(key)}>
                     <Icon className="nav-btn-icon" size={15} />
                     <span style={{ flex: 1 }}>{label}</span>
                     {badge > 0 && <span className="nav-badge">{badge}</span>}
@@ -449,13 +613,18 @@ export default function Dashboard() {
 
         <div className="main-area">
           <header className="topbar">
-            <div>
-              <div className="topbar-title">{sectionLabel}</div>
-              <div className="topbar-sub">UniFiX Admin</div>
+            <div className="topbar-left">
+              <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+                <Menu size={18} />
+              </button>
+              <div>
+                <div className="topbar-title">{sectionLabel}</div>
+                <div className="topbar-sub">UniFiX Admin</div>
+              </div>
             </div>
             <button className="refresh-btn" onClick={handleRefresh}>
               <RefreshCw size={13} className={refreshing ? 'spin' : ''} />
-              {refreshing ? 'Refreshing…' : 'Refresh'}
+              <span className="refresh-btn-text">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
             </button>
           </header>
 
@@ -879,7 +1048,7 @@ function UsersSection({ items, activeTab, onTabChange, stats, loading }) {
   return (
     <div>
       <SectionHeader title="Staff & Users" subtitle="All registered students and teachers on the platform" />
-      <div style={{ display: 'flex', gap: 14, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {[{ label: 'Students', value: stats.students ?? 0, color: '#6366f1', Icon: GraduationCap }, { label: 'Teachers', value: stats.teachers ?? 0, color: '#0ea5e9', Icon: BookUser }].map(s => (
           <div key={s.label} style={{ background: '#fff', borderRadius: 12, padding: '16px 24px', border: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 42, height: 42, borderRadius: 11, background: s.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><s.Icon size={20} color={s.color} /></div>
