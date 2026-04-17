@@ -1,19 +1,36 @@
+const admin = require('../config/firebase');
+
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
-const sendPushNotification = async (expoPushTokens, title, body, data = {}) => {
+const sendPushNotification = async (tokens, title, body, data = {}) => {
   try {
-    const tokens = Array.isArray(expoPushTokens) ? expoPushTokens : [expoPushTokens];
-
-    const validTokens = tokens.filter(
-      t => t && typeof t === 'string' && t.startsWith('ExponentPushToken')
-    );
-
-    if (!validTokens.length) {
-      console.log('No valid Expo push tokens found');
+    if (!tokens || tokens.length === 0) {
+      console.log('No tokens provided');
       return;
     }
 
-    const messages = validTokens.map(token => ({
+    const expoTokens = tokens.filter(t => t && typeof t === 'string' && t.startsWith('ExponentPushToken'));
+    const fcmTokens = tokens.filter(t => t && typeof t === 'string' && !t.startsWith('ExponentPushToken'));
+
+    if (expoTokens.length > 0) {
+      await sendViaExpo(expoTokens, title, body, data);
+    }
+
+    if (fcmTokens.length > 0) {
+      await sendViaFCM(fcmTokens, title, body, data);
+    }
+
+    if (expoTokens.length === 0 && fcmTokens.length === 0) {
+      console.log('No valid tokens found'); 
+    }
+  } catch (error) {
+    console.error('Push notification error:', error.message);
+  }
+};
+
+const sendViaExpo = async (expoPushTokens, title, body, data = {}) => {
+  try {
+    const messages = expoPushTokens.map(token => ({
       to: token,
       sound: 'default',
       title,
@@ -40,7 +57,61 @@ const sendPushNotification = async (expoPushTokens, title, body, data = {}) => {
       console.log('Expo push result:', JSON.stringify(result));
     }
   } catch (error) {
-    console.error('Push notification error:', error.message);
+    console.error('Expo push error:', error.message);
+  }
+};
+
+const sendViaFCM = async (fcmTokens, title, body, data = {}) => {
+  try {
+    const validTokens = fcmTokens.slice(0, 500);
+
+    const message = {
+      tokens: validTokens,
+      notification: {
+        title,
+        body,
+      },
+      data: {
+        ...data,
+        _deepLink: buildDeepLink(data) || '',
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'default',
+          sound: 'default',
+        },
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+            'content-available': 1,
+          },
+        },
+      },
+    };
+
+    const response = await admin.messaging().sendMulticast(message);
+    console.log('FCM response:', {
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      failedTokens: response.responses
+        .map((resp, idx) => ({ token: validTokens[idx], error: resp.error?.message }))
+        .filter(r => r.error),
+    });
+
+    if (response.failureCount > 0) {
+      const failedTokens = response.responses
+        .map((resp, idx) => (resp.error ? validTokens[idx] : null))
+        .filter(Boolean);
+      console.log('Failed tokens to remove:', failedTokens);
+    }
+  } catch (error) {
+    console.error('FCM push error:', error.message);
   }
 };
 
@@ -68,6 +139,17 @@ const buildDeepLink = (data = {}) => {
 const extractTokens = (data) => {
   const tokens = [];
 
+  if (Array.isArray(data.pushToken)) {
+    data.pushToken.forEach(t => {
+      if (t && typeof t === 'string' && (t.startsWith('ExponentPushToken') || t.length > 50)) {
+        tokens.push(t);
+      }
+    });
+  } else if (data.pushToken && typeof data.pushToken === 'string' && 
+    (data.pushToken.startsWith('ExponentPushToken') || data.pushToken.length > 50)) {
+    tokens.push(data.pushToken);
+  }
+
   if (Array.isArray(data.expoPushToken)) {
     data.expoPushToken.forEach(t => {
       if (t && typeof t === 'string' && t.startsWith('ExponentPushToken')) {
@@ -82,7 +164,7 @@ const extractTokens = (data) => {
     tokens.push(data.expoPushToken);
   }
 
-  return tokens;
+  return [...new Set(tokens)];
 };
 
 const getAllUserTokens = async (db, excludeUid = null) => {

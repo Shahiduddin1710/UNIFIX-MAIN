@@ -169,11 +169,11 @@ const pickPhoto = async () => {
 
  const handleSubmit = async () => {
     setError("");
-    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-    const hour = nowIST.getUTCHours();
-    if (hour < 8 || hour >= 20) {
-      return setError("Complaints can only be submitted between 8:00 AM and 8:00 PM.");
-    }
+    // const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    // const hour = nowIST.getUTCHours();
+    // if (hour < 8 || hour >= 20) { 
+    //   return setError("Complaints can only be submitted between 8:00 AM and 8:00 PM.");
+    // }
     const category = selectedCategory || "others";
     const finalSubIssue = subIssue || null;
     const finalCustom = issueTitle.trim() || null;

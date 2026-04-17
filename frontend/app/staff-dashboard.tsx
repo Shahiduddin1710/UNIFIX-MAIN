@@ -372,12 +372,12 @@ const onRefresh = () => {
   };
 
 const handleAccept = async (complaintId: string) => {
-    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-    const hour = nowIST.getUTCHours();
-    if (hour < 8 || hour >= 20) {
-      showToast("Actions only allowed between 8 AM – 8 PM.", "error");
-      return;
-    }
+    // const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    // const hour = nowIST.getUTCHours();
+    // if (hour < 8 || hour >= 20) {
+    //   showToast("Actions only allowed between 8 AM – 8 PM.", "error");
+    //   return;
+    // }
     setActionLoading(complaintId);
     try {
       await complaintsAPI.accept(complaintId);
@@ -395,12 +395,12 @@ const handleAccept = async (complaintId: string) => {
  const handleReject = async () => {
     if (!rejectReason.trim()) { showToast("Please enter a rejection reason.", "error"); return; }
     if (!rejectTarget) return;
-    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-    const hour = nowIST.getUTCHours();
-    if (hour < 8 || hour >= 20) {
-      showToast("Actions only allowed between 8 AM - 8 PM.", "error");
-      return;
-    }
+    // const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    // const hour = nowIST.getUTCHours();
+    // if (hour < 8 || hour >= 20) {
+    //   showToast("Actions only allowed between 8 AM - 8 PM.", "error");
+    //   return;
+    // }
     setActionLoading(rejectTarget);
     try {
       await complaintsAPI.reject(rejectTarget, rejectReason.trim());
@@ -413,12 +413,12 @@ const handleAccept = async (complaintId: string) => {
   };
 
 const handleUpdateStatus = async (complaintId: string, status: string) => {
-    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-    const hour = nowIST.getUTCHours();
-    if (hour < 8 || hour >= 20) {
-      showToast("Actions only allowed between 8 AM – 8 PM.", "error");
-      return;
-    }
+    // const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    // const hour = nowIST.getUTCHours();
+    // if (hour < 8 || hour >= 20) {
+    //   showToast("Actions only allowed between 8 AM – 8 PM.", "error");
+    //   return;
+    // }
     setActionLoading(complaintId);
     try {
       await complaintsAPI.updateStatus(complaintId, status);
