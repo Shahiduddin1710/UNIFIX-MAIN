@@ -18,6 +18,7 @@ app.use("/auth", require("./routes/auth"));
 app.use("/admin", require("./routes/adminRoutes"));
 app.use("/complaints", require("./routes/complaints"));
 app.use("/lost-found", require("./routes/lostFound"));
+app.use("/lost-reports", require("./routes/lostReportRoutes"));
 
 app.get("/health", (req, res) =>
   res.json({ status: "OK", timestamp: new Date().toISOString() }),

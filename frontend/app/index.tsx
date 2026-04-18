@@ -12,7 +12,7 @@ import { doc, getDoc, updateDoc, collection, query, where, orderBy, onSnapshot }
 import { onAuthStateChanged } from "firebase/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "../firebase/firebaseConfig";
-import { authAPI, complaintsAPI, lostFoundAPI } from "../services/api";
+import { authAPI, complaintsAPI, lostFoundAPI, lostReportsAPI } from "../services/api";
 import { Ionicons } from "@expo/vector-icons";
 
 const CLOUDINARY_CLOUD = "dcizaxjul";
@@ -67,6 +67,22 @@ type ClaimItem = {
   handedByName: string; handedByRole: string;
   handedToName: string; roomNumber: string; roomLabel: string;
   collectLocation: string; handedAt: any;
+};
+
+type LostReport = {
+  id: string;
+  itemName: string;
+  category: string;
+  description: string;
+  locationLost: string;
+  dateLost: string;
+  howToReach: string;
+  images: string[];
+  postedBy?: { uid?: string; name?: string; role?: string; department?: string };
+  postedByName?: string;
+  postedAt: any;
+  status: string;
+  isMyPost: boolean;
 };
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string; dot: string; icon: keyof typeof Ionicons.glyphMap }> = {
@@ -200,18 +216,23 @@ export default function DashboardScreen() {
   const [ratingError, setRatingError]         = useState("");
 
   const [feedItems, setFeedItems]             = useState<LostItem[]>([]);
-const [myPosts, setMyPosts]                 = useState<LostItem[]>([]);
-const [claimItems, setClaimItems]           = useState<ClaimItem[]>([]);
-  const [lfTab, setLfTab] = useState<"feed" | "myposts" | "claims">("feed");
+ const [myPosts, setMyPosts]                 = useState<LostReport[]>([]);
+  const [claimItems, setClaimItems]           = useState<ClaimItem[]>([]);
+  const [lostReports, setLostReports]         = useState<LostReport[]>([]);
+ const [lfTab, setLfTab] = useState<"lost" | "found" | "lost-history" | "claims">("lost");
   const [lfLoading, setLfLoading]             = useState(false);
+  const [lostReportsLoading, setLostReportsLoading] = useState(false);
+  const [userRole, setUserRole]               = useState<string>("");
+  const [currentUserId, setCurrentUserId]     = useState<string>("");
   const [handoverItem, setHandoverItem]       = useState<LostItem | null>(null);
   const [handedToName, setHandedToName]       = useState("");
   const [handoverLoading, setHandoverLoading] = useState(false);
   const [handoverError, setHandoverError]     = useState("");
   const [photoUploading, setPhotoUploading]   = useState(false);
   const [refreshing, setRefreshing]           = useState(false);
-  const [imageViewerUri, setImageViewerUri] = useState<string | null>(null);
+  const [imageViewerUri, setImageViewerUri]   = useState<string | null>(null);
   const [hasPendingIdCard, setHasPendingIdCard] = useState(false);
+  const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
 
   const [editName, setEditName]               = useState("");
   const [editPhone, setEditPhone]             = useState("");
@@ -264,39 +285,41 @@ const [claimItems, setClaimItems]           = useState<ClaimItem[]>([]);
     unsubComplaintsRef.current = unsub;
   }, []);
 
+  const lfUnsubRef = useRef<(() => void)[]>([]);
 
-const lfUnsubRef = useRef<(() => void)[]>([]);
+  const fetchLostFound = useCallback((uid: string) => {
+    lfUnsubRef.current.forEach(fn => fn());
+    lfUnsubRef.current = [];
 
-const fetchLostFound = useCallback((uid: string) => {
-  lfUnsubRef.current.forEach(fn => fn());
-  lfUnsubRef.current = [];
+    setLfLoading(true);
 
-  setLfLoading(true);
+    const unsubFeed = onSnapshot(
+      query(collection(db, "lostFound"), where("status", "==", "available"), orderBy("createdAt", "desc")),
+      (snap) => {
+        setFeedItems(snap.docs.map(d => ({ id: d.id, ...(d.data() as any), isMyPost: d.data().postedBy === uid })));
+        setLfLoading(false);
+      }
+    );
 
-  const unsubFeed = onSnapshot(
-    query(collection(db, "lostFound"), where("status", "==", "available"), orderBy("createdAt", "desc")),
-    (snap) => {
-      setFeedItems(snap.docs.map(d => ({ id: d.id, ...d.data() as any, isMyPost: d.data().postedBy === uid })));
-      setLfLoading(false);
-    }
-  );
+lostReportsAPI.feed().then(res => {
+  const all = (res.items || []).map((item: any) => ({
+    ...item,
+    isMyPost: item.postedBy?.uid === uid,
+  }));
+  setMyPosts(all.filter((r: LostReport) => r.postedBy?.uid === uid));
+}).catch(err => console.error("myPosts error:", err));
 
-  const unsubMyPosts = onSnapshot(
-    query(collection(db, "lostFound"), where("postedBy", "==", uid), orderBy("createdAt", "desc")),
-    (snap) => {
-      setMyPosts(snap.docs.map(d => ({ id: d.id, ...d.data() as any, isMyPost: true })));
-    }
-  );
+const unsubMyLostReports = () => {};
 
-  const unsubClaims = onSnapshot(
-    query(collection(db, "claims"), orderBy("createdAt", "desc")),
-    (snap) => {
-      setClaimItems(snap.docs.map(d => ({ id: d.id, ...d.data() as any })));
-    }
-  );
+    const unsubClaims = onSnapshot(
+      query(collection(db, "claims"), orderBy("createdAt", "desc")),
+      (snap) => {
+        setClaimItems(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      }
+    );
 
-  lfUnsubRef.current = [unsubFeed, unsubMyPosts, unsubClaims];
-}, []);
+    lfUnsubRef.current = [unsubFeed, unsubMyLostReports, unsubClaims];
+  }, []);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -314,29 +337,46 @@ const fetchLostFound = useCallback((uid: string) => {
     } catch {}
   }, []);
 
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) return;
+      try {
+        await u.getIdToken(true);
+        setCurrentUserId(u.uid);
+        const snap = await getDoc(doc(db, "users", u.uid));
+        if (!snap.exists()) return;
+        setUserData(snap.data() as UserData);
+        setUserRole(snap.data()?.role || "");
+        tokenRef.current = await u.getIdToken();
+        subscribeToComplaints(u.uid);
+        fetchLostFound(u.uid);
+        await fetchProfile();
+        await registerPushToken();
 
-useEffect(() => {
-  const unsub = onAuthStateChanged(auth, async (u) => {
-    if (!u) return;
-    try {
-      await u.getIdToken(true);
-      const snap = await getDoc(doc(db, "users", u.uid));
-      if (!snap.exists()) return;
-      setUserData(snap.data() as UserData);
-      tokenRef.current = await u.getIdToken();
-      subscribeToComplaints(u.uid);
-      fetchLostFound(u.uid);
-      await fetchProfile();
-      await registerPushToken();
-    } catch {}
-    finally { setLoading(false); }
-  });
-  return () => {
-    unsub();
-    if (unsubComplaintsRef.current) unsubComplaintsRef.current();
-    lfUnsubRef.current.forEach(fn => fn());
-  };
-}, []);
+        setLostReportsLoading(true);
+        try {
+          const res = await lostReportsAPI.feed();
+          setLostReports(
+            (res.items || []).map((item: any) => ({
+              ...item,
+              isMyPost: item.postedBy?.uid === u.uid,
+            }))
+          );
+        } catch (err) {
+          console.error("Error loading lost reports:", err);
+        }
+        finally {
+          setLostReportsLoading(false);
+        }
+      } catch {}
+      finally { setLoading(false); }
+    });
+    return () => {
+      unsub();
+      if (unsubComplaintsRef.current) unsubComplaintsRef.current();
+      lfUnsubRef.current.forEach(fn => fn());
+    };
+  }, []);
 
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -357,21 +397,39 @@ useEffect(() => {
       if (itemId && (type === "new_lost_found" || type === "item_handover")) {
         switchTab("lostfound");
       }
+   if (type === "new_lost_report") {
+  switchTab("lostfound");
+  setLfTab("lost-history");
+}
     });
     return () => sub.remove();
   }, [complaints]);
 
+  const switchTab = useCallback((tab: TabType) => {
+    setActiveTab(tab);
+    setProfileScreen("main");
+  }, []);
 
-const switchTab = useCallback((tab: TabType) => {
-  setActiveTab(tab);
-  setProfileScreen("main");
-}, []);
-
-
-const onRefresh = useCallback(async () => {
-  setRefreshing(true);
-  setTimeout(() => setRefreshing(false), 500);
-}, []);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const res = await lostReportsAPI.feed();
+        setLostReports(
+          (res.items || []).map((item: any) => ({
+            ...item,
+            isMyPost: item.postedBy?.uid === user.uid,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Error refreshing:", err);
+    }
+    finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const handleCall = (phone: string | null, name: string | null) => {
     if (!phone?.trim()) return;
@@ -384,7 +442,6 @@ const onRefresh = useCallback(async () => {
       ]
     );
   };
-
 
   const handleHandover = async () => {
     if (!handedToName.trim()) { setHandoverError("Please enter the name."); return; }
@@ -543,6 +600,27 @@ const onRefresh = useCallback(async () => {
     } catch (err: any) {
       setIdCardError(err.message || "Upload failed. Please try again.");
     } finally { setIdCardUploading(false); }
+  };
+
+  const handleDeleteLostReport = async (reportId: string) => {
+    Alert.alert(
+      "Delete Lost Report",
+      "Are you sure you want to delete this report?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: async () => {
+          setDeletingReportId(reportId);
+          try {
+           await lostReportsAPI.deleteReport(reportId);
+            setLostReports(prev => prev.filter(r => r.id !== reportId));
+          } catch (err: any) {
+            Alert.alert("Error", "Failed to delete report. Please try again.");
+          } finally {
+            setDeletingReportId(null);
+          }
+        }},
+      ]
+    );
   };
 
   if (loading) return <View style={s.loader}><ActivityIndicator size="large" color="#16a34a" /></View>;
@@ -759,6 +837,13 @@ const onRefresh = useCallback(async () => {
     </KeyboardAvoidingView>
   );
 
+const visibleTabs: ("lost" | "found" | "lost-history" | "claims")[] = (["lost", "found", "lost-history", "claims"] as const).filter(tab => {
+  if (tab === "lost" || tab === "lost-history") {
+    return userRole === "student" || userRole === "teacher";
+  }
+  return true;
+}) as ("lost" | "found" | "lost-history" | "claims")[];
+
   return (
     <View style={s.root}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -903,120 +988,264 @@ const onRefresh = useCallback(async () => {
         <View style={s.fullTab}>
           <View style={s.tabHeader}>
             <Text style={s.tabHeaderTitle}>Lost & Found</Text>
-            <TouchableOpacity style={s.addBtn} onPress={() => router.push("/post-found-item" as any)}>
+            <TouchableOpacity style={s.addBtn} onPress={() => router.push("/post-lost-report" as any)}>
               <Ionicons name="add" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
           <View style={s.segmentRow}>
-  {(["feed", "myposts", "claims"] as const).map((tab) => (
-    <TouchableOpacity key={tab} style={[s.segmentBtn, lfTab === tab && s.segmentBtnActive]} onPress={() => setLfTab(tab)}>
-      <Text style={[s.segmentBtnText, lfTab === tab && s.segmentBtnTextActive]}>
-        {tab === "feed" ? "All Items" : tab === "myposts" ? "My Posts" : "Claims"}
-      </Text>
-    </TouchableOpacity>
-  ))}
-</View>
-          {lfLoading ? (
-            <View style={s.tabLoader}><ActivityIndicator size="large" color="#16a34a" /></View>
-          ) : (
-            <ScrollView contentContainerStyle={[s.tabContainer, { paddingBottom: bottomNavHeight + 20 }]} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#16a34a"]} />}>
-{lfTab === "claims" ? (
-    claimItems.length === 0 ? (
-      <View style={s.emptyState}>
-        <View style={s.emptyIconWrap}><Ionicons name="checkmark-circle-outline" size={40} color="#16a34a" /></View>
-        <Text style={s.emptyStateTitle}>No claims yet</Text>
-        <Text style={s.emptyStateSub}>Handover records will appear here so everyone knows who collected what.</Text>
-      </View>
-    ) : claimItems.map((item) => (
-      <View key={item.id} style={[s.lfCard, { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 14 }]}>
-        <View style={[s.lfAvatar, { width: 42, height: 42, borderRadius: 12, marginTop: 2 }]}>
-          <Ionicons name="checkmark-circle-outline" size={20} color="#16a34a" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={s.lfTitle}>{item.itemName}</Text>
-          <Text style={s.lfDesc}>
-            <Text style={{ color: "#94a3b8" }}>Handed by </Text>
-            <Text style={{ fontWeight: "700", color: "#0f172a" }}>{item.handedByName}</Text>
-            {item.handedByRole ? <Text style={{ color: "#64748b" }}> ({item.handedByRole})</Text> : null}
-          </Text>
-          <Text style={s.lfDesc}>
-            <Text style={{ color: "#94a3b8" }}>Collected by </Text>
-            <Text style={{ fontWeight: "700", color: "#0f172a" }}>{item.handedToName}</Text>
-          </Text>
-          {item.roomNumber ? (
-            <View style={s.lfMetaRow}>
-              <Ionicons name="location-outline" size={12} color="#64748b" />
-              <Text style={s.lfLocText}>Room {item.roomNumber}{item.roomLabel ? ` — ${item.roomLabel}` : ""}</Text>
-            </View>
-          ) : null}
-          {item.collectLocation ? (
-            <View style={s.lfMetaRow}>
-              <Ionicons name="pin-outline" size={12} color="#16a34a" />
-              <Text style={s.lfCollectText}>Handed at: {item.collectLocation}</Text>
-            </View>
-          ) : null}
-          <Text style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{formatDate(item.handedAt)}</Text>
-        </View>
-        {item.photoUrl ? (
-  <TouchableOpacity onPress={() => setImageViewerUri(item.photoUrl!)} activeOpacity={0.9}>
-    <Image source={{ uri: item.photoUrl }} style={{ width: 56, height: 56, borderRadius: 10, marginTop: 2 }} resizeMode="cover" />
-  </TouchableOpacity>
-) : null}
-      </View>
-    ))
-  ) : (
-    (lfTab === "feed" ? feedItems : myPosts).length === 0 ? (
-      <View style={s.emptyState}>
-        <View style={s.emptyIconWrap}><Ionicons name={lfTab === "feed" ? "search-outline" : "cube-outline"} size={40} color="#16a34a" /></View>
-        <Text style={s.emptyStateTitle}>{lfTab === "feed" ? "No items posted yet" : "No posts yet"}</Text>
-        <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/post-found-item" as any)}><Text style={s.actionBtnText}>Post Found Item</Text></TouchableOpacity>
-      </View>
-    ) : (
-      (lfTab === "feed" ? feedItems : myPosts).map((item) => {
-        const isHandedOver = item.status === "handed_over";
-        return (
-          <View key={item.id} style={s.lfCard}>
-            <View style={s.lfCardHeader}>
-              <View style={s.lfAvatar}><Text style={s.lfAvatarText}>{item.postedByName?.[0]?.toUpperCase() ?? "?"}</Text></View>
-              <View style={{ flex: 1 }}><Text style={s.lfPosterName}>{item.postedByName}</Text><Text style={s.lfPosterTime}>{formatAgo(item.createdAt)}</Text></View>
-              {item.isMyPost && <View style={s.myPostBadge}><Text style={s.myPostBadgeText}>MY POST</Text></View>}
-              {!isHandedOver && <View style={s.foundBadge}><Text style={s.foundBadgeText}>FOUND</Text></View>}
-            </View>
-            {item.photoUrl ? (
-  <TouchableOpacity onPress={() => setImageViewerUri(item.photoUrl!)} activeOpacity={0.9}>
-    <Image source={{ uri: item.photoUrl }} style={s.lfImage} resizeMode="cover" />
-  </TouchableOpacity>
-) : (
-              <View style={s.lfImageEmpty}><Ionicons name="cube-outline" size={40} color="#94a3b8" /></View>
-            )}
-            <View style={s.lfBody}>
-              <Text style={s.lfTitle}>{item.itemName}</Text>
-              {item.description ? <Text style={s.lfDesc}>{item.description}</Text> : null}
-              <View style={s.lfMetaRow}><Ionicons name="location-outline" size={13} color="#374151" /><Text style={s.lfLocText}>Room {item.roomNumber}{item.roomLabel ? ` — ${item.roomLabel}` : ""}</Text></View>
-              {item.collectLocation ? (
-                <View style={s.lfMetaRow}>
-                  <Ionicons name="pin-outline" size={13} color="#16a34a" />
-                  <Text style={s.lfCollectText}>Collect from: {item.collectLocation}</Text>
-                </View>
-              ) : null}
-              {isHandedOver ? (
-                <View style={s.handedBox}>
-                  <Ionicons name="checkmark-circle" size={18} color="#16a34a" style={{ marginRight: 8 }} />
-                  <Text style={s.handedText}>Handed to {item.handedToName}</Text>
-                </View>
-              ) : item.isMyPost ? (
-                <TouchableOpacity style={s.handoverBtn} onPress={() => { setHandoverItem(item); setHandedToName(""); setHandoverError(""); }}>
-                  <Text style={s.handoverBtnText}>Mark as Handed Over</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            {visibleTabs.map((tab) => (
+              <TouchableOpacity key={tab} style={[s.segmentBtn, lfTab === tab && s.segmentBtnActive]} onPress={() => setLfTab(tab)}>
+                <Text style={[s.segmentBtnText, lfTab === tab && s.segmentBtnTextActive]}>
+                  {tab === "lost" ? "Lost" : tab === "found" ? "Found" : tab === "lost-history" ? "Lost History" : "Claims"}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        );
-      })
-    )
-  )}
-</ScrollView>
-          )}
+          <ScrollView contentContainerStyle={[s.tabContainer, { paddingBottom: bottomNavHeight + 20 }]} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#16a34a"]} />}>
+          {lfTab === "lost" && (
+  lostReportsLoading ? (
+    <View style={s.emptyState}>
+      <ActivityIndicator size="large" color="#16a34a" />
+    </View>
+  ) : myPosts.length === 0 ? (
+    <View style={s.emptyState}>
+      <View style={[s.emptyIconWrap, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
+        <Ionicons name="cube-outline" size={40} color="#16a34a" />
+      </View>
+     <Text style={s.emptyStateTitle}>{"You haven't reported any lost items"}</Text>
+      <TouchableOpacity style={[s.actionBtn, { backgroundColor: "#16a34a" }]} onPress={() => router.push("/post-lost-report" as any)}>
+        <Text style={s.actionBtnText}>+ Post Lost Report</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    myPosts.map((item) => (
+                  <View key={item.id} style={s.lfCard}>
+                    <View style={s.lfCardHeader}>
+                      <View style={s.lfAvatar}>
+                       <Text style={s.lfAvatarText}>{(item.postedBy?.name || item.postedByName)?.[0]?.toUpperCase() ?? "?"}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                       <Text style={s.lfPosterName}>{item.postedBy?.name || item.postedByName}</Text>
+                      <Text style={s.lfPosterTime}>{item.postedBy?.role ?? ""} · {formatAgo(item.postedAt)}</Text>
+                      </View>
+                      {item.isMyPost && <View style={s.myPostBadge}><Text style={s.myPostBadgeText}>MY POST</Text></View>}
+                      <View style={[s.foundBadge, { backgroundColor: "#16a34a" }]}>
+                        <Text style={s.foundBadgeText}>LOST</Text>
+                      </View>
+                    </View>
+                    {item.images?.length > 0 ? (
+                      <TouchableOpacity onPress={() => setImageViewerUri(item.images[0])}>
+                        <Image source={{ uri: item.images[0] }} style={s.lfImage} resizeMode="cover" />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={s.lfImageEmpty}>
+                        <Ionicons name="search-outline" size={40} color="#94a3b8" />
+                      </View>
+                    )}
+                    <View style={s.lfBody}>
+                      <Text style={s.lfTitle}>{item.itemName}</Text>
+                      <View style={[s.myPostBadge, { alignSelf: "flex-start", marginBottom: 8, backgroundColor: "#fef3c7", borderColor: "#fde68a" }]}>
+                        <Text style={[s.myPostBadgeText, { color: "#92400e" }]}>{item.category}</Text>
+                      </View>
+                      {item.description ? <Text style={s.lfDesc}>{item.description}</Text> : null}
+                      <View style={s.lfMetaRow}>
+                        <Ionicons name="location-outline" size={13} color="#374151" />
+                        <Text style={s.lfLocText}>{item.locationLost}</Text>
+                      </View>
+                      <View style={s.lfMetaRow}>
+                        <Ionicons name="calendar-outline" size={13} color="#374151" />
+                        <Text style={s.lfLocText}>Lost: {item.dateLost}</Text>
+                      </View>
+                      <View style={s.lfMetaRow}>
+                        <Ionicons name="call-outline" size={13} color="#16a34a" />
+                        <Text style={s.lfCollectText}>{item.howToReach}</Text>
+                      </View>
+                      {item.isMyPost && (
+                        <TouchableOpacity 
+                          style={s.deleteBtn} 
+                          onPress={() => handleDeleteLostReport(item.id)}
+                          disabled={deletingReportId === item.id}
+                        >
+                          {deletingReportId === item.id ? (
+                            <ActivityIndicator size="small" color="#dc2626" />
+                          ) : (
+                            <>
+                              <Ionicons name="trash-outline" size={14} color="#dc2626" style={{ marginRight: 6 }} />
+                              <Text style={s.deleteBtnText}>Delete Report</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                ))
+              )
+            )}
+           {lfTab === "lost-history" && (
+  lostReportsLoading ? (
+    <View style={s.emptyState}>
+      <ActivityIndicator size="large" color="#f59e0b" />
+    </View>
+  ) : lostReports.length === 0 ? (
+    <View style={s.emptyState}>
+      <View style={[s.emptyIconWrap, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}>
+        <Ionicons name="search-outline" size={40} color="#f59e0b" />
+      </View>
+      <Text style={s.emptyStateTitle}>No lost reports yet</Text>
+      <Text style={s.emptyStateSub}>All campus lost reports appear here.</Text>
+    </View>
+  ) : (
+    lostReports.map((item) => (
+                  <View key={item.id} style={s.lfCard}>
+                    <View style={s.lfCardHeader}>
+                      <View style={s.lfAvatar}>
+                        <Text style={s.lfAvatarText}>{item.postedByName?.[0]?.toUpperCase() ?? "?"}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.lfPosterName}>{item.postedByName}</Text>
+                        <Text style={s.lfPosterTime}>{formatAgo(item.postedAt)}</Text>
+                      </View>
+                      <View style={s.myPostBadge}><Text style={s.myPostBadgeText}>MY POST</Text></View>
+                      <View style={[s.foundBadge, { backgroundColor: "#16a34a" }]}>
+                        <Text style={s.foundBadgeText}>LOST</Text>
+                      </View>
+                    </View>
+                    {item.images?.length > 0 ? (
+                      <TouchableOpacity onPress={() => setImageViewerUri(item.images[0])}>
+                        <Image source={{ uri: item.images[0] }} style={s.lfImage} resizeMode="cover" />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={s.lfImageEmpty}>
+                        <Ionicons name="search-outline" size={40} color="#94a3b8" />
+                      </View>
+                    )}
+                    <View style={s.lfBody}>
+                      <Text style={s.lfTitle}>{item.itemName}</Text>
+                      <View style={[s.myPostBadge, { alignSelf: "flex-start", marginBottom: 8, backgroundColor: "#fef3c7", borderColor: "#fde68a" }]}>
+                        <Text style={[s.myPostBadgeText, { color: "#92400e" }]}>{item.category}</Text>
+                      </View>
+                      {item.description ? <Text style={s.lfDesc}>{item.description}</Text> : null}
+                      <View style={s.lfMetaRow}>
+                        <Ionicons name="location-outline" size={13} color="#374151" />
+                        <Text style={s.lfLocText}>{item.locationLost}</Text>
+                      </View>
+                      <View style={s.lfMetaRow}>
+                        <Ionicons name="calendar-outline" size={13} color="#374151" />
+                        <Text style={s.lfLocText}>Lost: {item.dateLost}</Text>
+                      </View>
+                      <View style={s.lfMetaRow}>
+                        <Ionicons name="call-outline" size={13} color="#16a34a" />
+                        <Text style={s.lfCollectText}>{item.howToReach}</Text>
+                      </View>
+                     {item.isMyPost && (
+                        <View style={[s.myPostBadge, { alignSelf: "center", marginTop: 8 }]}>
+                          <Text style={s.myPostBadgeText}>YOUR POST</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ))
+              )
+            )}
+            {lfTab === "found" && (
+              feedItems.length === 0 ? (
+                <View style={s.emptyState}>
+                  <View style={s.emptyIconWrap}><Ionicons name="search-outline" size={40} color="#16a34a" /></View>
+                  <Text style={s.emptyStateTitle}>No found items posted yet</Text>
+                  <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/post-found-item" as any)}><Text style={s.actionBtnText}>Post Found Item</Text></TouchableOpacity>
+                </View>
+              ) : (
+                feedItems.map((item) => {
+                  const isHandedOver = item.status === "handed_over";
+                  return (
+                    <View key={item.id} style={s.lfCard}>
+                      <View style={s.lfCardHeader}>
+                        <View style={s.lfAvatar}><Text style={s.lfAvatarText}>{item.postedByName?.[0]?.toUpperCase() ?? "?"}</Text></View>
+                        <View style={{ flex: 1 }}><Text style={s.lfPosterName}>{item.postedByName}</Text><Text style={s.lfPosterTime}>{formatAgo(item.createdAt)}</Text></View>
+                        {item.isMyPost && <View style={s.myPostBadge}><Text style={s.myPostBadgeText}>MY POST</Text></View>}
+                        {!isHandedOver && <View style={s.foundBadge}><Text style={s.foundBadgeText}>FOUND</Text></View>}
+                      </View>
+                      {item.photoUrl ? (
+                        <TouchableOpacity onPress={() => setImageViewerUri(item.photoUrl!)} activeOpacity={0.9}>
+                          <Image source={{ uri: item.photoUrl }} style={s.lfImage} resizeMode="cover" />
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={s.lfImageEmpty}><Ionicons name="cube-outline" size={40} color="#94a3b8" /></View>
+                      )}
+                      <View style={s.lfBody}>
+                        <Text style={s.lfTitle}>{item.itemName}</Text>
+                        {item.description ? <Text style={s.lfDesc}>{item.description}</Text> : null}
+                        <View style={s.lfMetaRow}><Ionicons name="location-outline" size={13} color="#374151" /><Text style={s.lfLocText}>Room {item.roomNumber}{item.roomLabel ? ` — ${item.roomLabel}` : ""}</Text></View>
+                        {item.collectLocation ? (
+                          <View style={s.lfMetaRow}>
+                            <Ionicons name="pin-outline" size={13} color="#16a34a" />
+                            <Text style={s.lfCollectText}>Collect from: {item.collectLocation}</Text>
+                          </View>
+                        ) : null}
+                        {isHandedOver ? (
+                          <View style={s.handedBox}>
+                            <Ionicons name="checkmark-circle" size={18} color="#16a34a" style={{ marginRight: 8 }} />
+                            <Text style={s.handedText}>Handed to {item.handedToName}</Text>
+                          </View>
+                        ) : item.isMyPost ? (
+                          <TouchableOpacity style={s.handoverBtn} onPress={() => { setHandoverItem(item); setHandedToName(""); setHandoverError(""); }}>
+                            <Text style={s.handoverBtnText}>Mark as Handed Over</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })
+              )
+            )}
+            {lfTab === "claims" && (
+              claimItems.length === 0 ? (
+                <View style={s.emptyState}>
+                  <View style={s.emptyIconWrap}><Ionicons name="checkmark-circle-outline" size={40} color="#16a34a" /></View>
+                  <Text style={s.emptyStateTitle}>No claims yet</Text>
+                  <Text style={s.emptyStateSub}>Handover records will appear here so everyone knows who collected what.</Text>
+                </View>
+              ) : (
+                claimItems.map((item) => (
+                  <View key={item.id} style={[s.lfCard, { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 14 }]}>
+                    <View style={[s.lfAvatar, { width: 42, height: 42, borderRadius: 12, marginTop: 2 }]}>
+                      <Ionicons name="checkmark-circle-outline" size={20} color="#16a34a" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.lfTitle}>{item.itemName}</Text>
+                      <Text style={s.lfDesc}>
+                        <Text style={{ color: "#94a3b8" }}>Handed by </Text>
+                        <Text style={{ fontWeight: "700", color: "#0f172a" }}>{item.handedByName}</Text>
+                        {item.handedByRole ? <Text style={{ color: "#64748b" }}> ({item.handedByRole})</Text> : null}
+                      </Text>
+                      <Text style={s.lfDesc}>
+                        <Text style={{ color: "#94a3b8" }}>Collected by </Text>
+                        <Text style={{ fontWeight: "700", color: "#0f172a" }}>{item.handedToName}</Text>
+                      </Text>
+                      {item.roomNumber ? (
+                        <View style={s.lfMetaRow}>
+                          <Ionicons name="location-outline" size={12} color="#64748b" />
+                          <Text style={s.lfLocText}>Room {item.roomNumber}{item.roomLabel ? ` — ${item.roomLabel}` : ""}</Text>
+                        </View>
+                      ) : null}
+                      {item.collectLocation ? (
+                        <View style={s.lfMetaRow}>
+                          <Ionicons name="pin-outline" size={12} color="#16a34a" />
+                          <Text style={s.lfCollectText}>Handed at: {item.collectLocation}</Text>
+                        </View>
+                      ) : null}
+                      <Text style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{formatDate(item.handedAt)}</Text>
+                    </View>
+                    {item.photoUrl ? (
+                      <TouchableOpacity onPress={() => setImageViewerUri(item.photoUrl!)} activeOpacity={0.9}>
+                        <Image source={{ uri: item.photoUrl }} style={{ width: 56, height: 56, borderRadius: 10, marginTop: 2 }} resizeMode="cover" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ))
+              )
+            )}
+          </ScrollView>
         </View>
       )}
 
@@ -1033,7 +1262,8 @@ const onRefresh = useCallback(async () => {
         {NAV_TABS.map((tab) => {
           const isActive = activeTab === tab.key;
           return (
-            <TouchableOpacity key={tab.key} style={s.navItem} onPress={() => { if (tab.key === "report") router.push("/submit-complaint" as any); else switchTab(tab.key as TabType); }}>
+            <TouchableOpacity key={tab.key} style={s.navItem} onPress={() => { if (tab.key === "report") router.push("/submit-complaint" as any); else if (tab.key === "lostfound") router.push("/lost-and-found" as any);
+else switchTab(tab.key as TabType); }}>
               <Ionicons name={isActive ? tab.activeIcon : tab.icon} size={22} color={isActive ? "#16a34a" : "#94a3b8"} />
               <Text style={[s.navLabel, isActive && s.navLabelActive]}>{tab.label}</Text>
               {isActive && <View style={s.navActiveDot} />}
@@ -1160,9 +1390,8 @@ const onRefresh = useCallback(async () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-      {imageViewerUri && (
-  <ImageViewer uri={imageViewerUri} visible={!!imageViewerUri} onClose={() => setImageViewerUri(null)} />
-)}
+
+      {imageViewerUri && <ImageViewer uri={imageViewerUri} visible={!!imageViewerUri} onClose={() => setImageViewerUri(null)} />}
     </View>
   );
 }
@@ -1254,6 +1483,8 @@ const s = StyleSheet.create({
   lfMetaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
   lfLocText: { fontSize: 13, color: "#374151", fontWeight: "500" },
   lfCollectText: { fontSize: 13, color: "#16a34a", fontWeight: "500" },
+  deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#fef2f2", borderRadius: 10, paddingVertical: 10, marginTop: 10, borderWidth: 1.5, borderColor: "#fecaca" },
+  deleteBtnText: { fontSize: 13, fontWeight: "700", color: "#dc2626" },
   handedBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: "#bbf7d0" },
   handedText: { fontSize: 13, fontWeight: "600", color: "#16a34a" },
   handoverBtn: { backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 10 },
@@ -1358,6 +1589,7 @@ const s = StyleSheet.create({
   progressStepWrap: { flexDirection: "row", alignItems: "center", flex: 1 },
   progressDotCol: { alignItems: "center", gap: 6 },
   progressDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: "#e2e8f0", borderWidth: 2, borderColor: "#e2e8f0" },
+ 
   progressDotActive: { backgroundColor: "#16a34a", borderColor: "#16a34a" },
   progressLine: { flex: 1, height: 2, backgroundColor: "#e2e8f0", marginBottom: 20 },
   progressLineActive: { backgroundColor: "#16a34a" },
@@ -1373,3 +1605,4 @@ const s = StyleSheet.create({
   handoverConfirmBtn: { flex: 1, backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 13, alignItems: "center" },
   handoverConfirmText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });
+    

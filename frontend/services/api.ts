@@ -121,7 +121,6 @@ export const complaintsAPI = {
   staffComplaints: () => get("/complaints/staff-complaints"),
 };
 
-
 export const lostFoundAPI = {
   feed: () => get("/lost-found/feed"),
 
@@ -141,4 +140,22 @@ export const lostFoundAPI = {
 
   handover: (itemId: string, handedToName: string) =>
     post("/lost-found/handover", { itemId, handedToName }),
+};
+
+export const lostReportsAPI = {
+  post: (payload: {
+    itemName: string;
+    category: string;
+    description: string;
+    locationLost: string;
+    dateLost: string;
+    howToReach: string;
+    images: string[];
+  }) => request("POST", "/lost-reports/post", payload),
+
+  feed: () => get("/lost-reports/feed"),
+
+  markFound: (id: string) => request("PATCH", `/lost-reports/${id}/found`, {}),
+
+  deleteReport: (id: string) => request("DELETE", `/lost-reports/${id}`, undefined),
 };

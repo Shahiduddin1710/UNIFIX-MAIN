@@ -129,10 +129,13 @@ const buildDeepLink = (data = {}) => {
     if (complaintId) return `unifix://complaint/${complaintId}`;
   }
 
-  if (type === 'new_lost_found') {
+if (type === 'new_lost_found') {
     if (itemId) return `unifix://lost-found/${itemId}`;
   }
 
+if (type === 'new_lost_report' || type === 'lost_report_found') {
+    return `unifix://lost-and-found?openTab=lost-history`;
+  }
   return null;
 };
 

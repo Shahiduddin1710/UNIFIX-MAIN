@@ -4,13 +4,14 @@ import {
   KeyboardAvoidingView, Platform, StatusBar, Dimensions,
 } from "react-native";
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "../firebase/firebaseConfig";
-import { lostFoundAPI } from "../services/api";
+import { lostFoundAPI, lostReportsAPI } from "../services/api";
 import { PanResponder, Animated } from "react-native";
+import { Alert } from "react-native";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
@@ -72,9 +73,9 @@ function ImageViewer({ uri, visible, onClose }: { uri: string; visible: boolean;
 }
 
 const iv = StyleSheet.create({
-  overlay:  { flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
+  overlay: { flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
   closeBtn: { position: "absolute", top: 52, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  image:    { width: SW, height: SH },
+  image: { width: SW, height: SH },
 });
 
 type LostItem = {
@@ -92,7 +93,22 @@ type ClaimItem = {
   collectLocation: string; handedAt: any;
 };
 
-type TabType = "feed" | "myposts" | "claims";
+type TabType = "lostreports" | "feed" | "lost-history" | "claims";
+
+type LostReport = {
+  id: string;
+  itemName: string;
+  category: string;
+  description: string;
+  locationLost: string;
+  dateLost: string;
+  howToReach: string;
+  images: string[];
+  postedBy?: { uid?: string; name?: string; role?: string; department?: string };
+  postedAt: any;
+  status: string;
+  isMyPost: boolean;
+};
 
 function formatAgo(ts: any): string {
   if (!ts) return "";
@@ -117,9 +133,12 @@ function formatDate(ts: any): string {
 }
 
 export default function LostAndFoundScreen() {
-  const [activeTab, setActiveTab] = useState<TabType>("feed");
+  const params = useLocalSearchParams();
+const [activeTab, setActiveTab] = useState<TabType>(
+  params.openTab === "lost-history" ? "lost-history" :
+  params.openTab === "lostreports" ? "lostreports" : "lostreports"
+);
   const [feedItems, setFeedItems] = useState<LostItem[]>([]);
-  const [myPosts, setMyPosts] = useState<LostItem[]>([]);
   const [claimItems, setClaimItems] = useState<ClaimItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -128,38 +147,85 @@ export default function LostAndFoundScreen() {
   const [handoverLoading, setHandoverLoading] = useState(false);
   const [handoverError, setHandoverError] = useState("");
   const [imageViewerUri, setImageViewerUri] = useState<string | null>(null);
+  const [lostReports, setLostReports] = useState<LostReport[]>([]);
+  const [userLostReports, setUserLostReports] = useState<LostReport[]>([]);
+  const [lostReportsLoading, setLostReportsLoading] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
+  const [currentUID, setCurrentUID] = useState<string>("");
   const router = useRouter();
 
-  useEffect(() => {
+ useEffect(() => {
     let unsubFeed: (() => void) | null = null;
-    let unsubMyPosts: (() => void) | null = null;
     let unsubClaims: (() => void) | null = null;
+    let unsubLostReports: (() => void) | null = null;
 
-    const unsubAuth = onAuthStateChanged(auth, (u) => {
-      if (!u) { router.replace("/login" as any); return; }
+    const unsubAuth = onAuthStateChanged(auth, async (u) => {
+      if (!u) {
+        router.replace("/login");
+        return;
+      }
 
       const uid = u.uid;
+      setCurrentUID(uid);
+
+      try {
+        const userDoc = await getDoc(doc(db, "users", uid));
+        if (userDoc.exists()) {
+          setUserRole(userDoc.data()?.role || "");
+        }
+      } catch (err) {
+        console.error("Error fetching user role:", err);
+      }
+
+setLoading(false);
 
       unsubFeed = onSnapshot(
         query(collection(db, "lostFound"), where("status", "==", "available"), orderBy("createdAt", "desc")),
         (snap) => {
-          setFeedItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any, isMyPost: doc.data().postedBy === uid })));
-          setLoading(false);
+          setFeedItems(
+            snap.docs.map(d => ({
+              id: d.id,
+              ...(d.data() as any),
+              isMyPost: d.data().postedBy === uid
+            }))
+          );
           setRefreshing(false);
-        }
-      );
-
-      unsubMyPosts = onSnapshot(
-        query(collection(db, "lostFound"), where("postedBy", "==", uid), orderBy("createdAt", "desc")),
-        (snap) => {
-          setMyPosts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any, isMyPost: true })));
         }
       );
 
       unsubClaims = onSnapshot(
         query(collection(db, "claims"), orderBy("createdAt", "desc")),
         (snap) => {
-          setClaimItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any })));
+          setClaimItems(
+            snap.docs.map(d => ({
+              id: d.id,
+              ...(d.data() as any)
+            }))
+          );
+        }
+      );
+
+      setLostReportsLoading(true);
+      unsubLostReports = onSnapshot(
+        query(
+          collection(db, "lost_reports"),
+          where("status", "in", ["active", "found"]),
+          orderBy("postedAt", "desc")
+        ),
+        (snap) => {
+          const allReports = snap.docs.map(docSnap => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+            isMyPost: docSnap.data().postedBy?.uid === uid,
+          })) as LostReport[];
+          setLostReports(allReports);
+          setUserLostReports(allReports.filter(r => r.postedBy?.uid === uid));
+          setLostReportsLoading(false);
+        },
+       (err) => {
+          console.error("Lost reports listener error FULL:", JSON.stringify(err));
+          Alert.alert("Debug", err.message || "Unknown listener error");
+          setLostReportsLoading(false);
         }
       );
     });
@@ -167,14 +233,14 @@ export default function LostAndFoundScreen() {
     return () => {
       unsubAuth();
       unsubFeed?.();
-      unsubMyPosts?.();
       unsubClaims?.();
+      unsubLostReports?.();
     };
   }, []);
 
-  const onRefresh = () => {
+ const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 500);
+    setTimeout(() => setRefreshing(false), 600);
   };
 
   const handleHandover = async () => {
@@ -189,7 +255,7 @@ export default function LostAndFoundScreen() {
       setHandoverError(err.message || "Failed to mark as handed over.");
     } finally { setHandoverLoading(false); }
   };
-  
+
   const renderCard = (item: LostItem) => {
     const isHandedOver = item.status === "handed_over";
     return (
@@ -290,7 +356,122 @@ export default function LostAndFoundScreen() {
     </View>
   );
 
+const handleMarkFound = async (id: string) => {
+  Alert.alert("Mark as Found", "Did you find your item?", [
+    { text: "Cancel", style: "cancel" },
+    {
+      text: "Yes, Found it!", style: "default",
+      onPress: async () => {
+        try {
+          await lostReportsAPI.markFound(id);
+         
+          setLostReports(prev =>
+            prev.map(r => r.id === id ? { ...r, status: 'found' } : r)
+          );
+          setUserLostReports(prev =>
+            prev.map(r => r.id === id ? { ...r, status: 'found' } : r)
+          );
+        } catch (err: any) {
+          Alert.alert("Error", err.message || "Failed to mark as found.");
+        }
+      },
+    },
+  ]);
+};
+
+  const handleDeleteReport = async (id: string) => {
+    Alert.alert("Delete Report", "Are you sure you want to delete this report?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete", style: "destructive",
+        onPress: async () => {
+          try {
+            await lostReportsAPI.deleteReport(id);
+            setLostReports(prev => prev.filter(r => r.id !== id));
+            setUserLostReports(prev => prev.filter(r => r.id !== id));
+          } catch (err: any) {
+            Alert.alert("Error", err.message || "Failed to delete.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const renderLostReportCard = (item: LostReport, showActions: boolean = false) => (
+    <View key={item.id} style={s.lfCard}>
+      <View style={s.lfCardHeader}>
+        <View style={s.lfAvatar}>
+          <Text style={s.lfAvatarText}>{item.postedBy?.name?.[0]?.toUpperCase() ?? "?"}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.lfPosterName}>{item.postedBy?.name}</Text>
+          <Text style={s.lfPosterTime}>{item.postedBy?.role} · {formatAgo(item.postedAt)}</Text>
+        </View>
+        {item.isMyPost && (
+          <View style={s.lfMyPostBadge}><Text style={s.lfMyPostBadgeText}>MY POST</Text></View>
+        )}
+       <View style={[s.lfFoundBadge, item.status === 'found' && { backgroundColor: "#2563eb" }]}>
+  <Text style={s.lfFoundBadgeText}>{item.status === 'found' ? 'FOUND' : 'LOST'}</Text>
+</View>
+      </View>
+
+      {item.images?.length > 0 ? (
+        <TouchableOpacity onPress={() => setImageViewerUri(item.images[0])} activeOpacity={0.9}>
+          <Image source={{ uri: item.images[0] }} style={s.lfImage} resizeMode="cover" />
+        </TouchableOpacity>
+      ) : (
+        <View style={s.lfImageEmpty}>
+          <Ionicons name="search-outline" size={44} color="#cbd5e1" />
+        </View>
+      )}
+
+      <View style={s.lfBody}>
+        <Text style={s.lfTitle}>{item.itemName}</Text>
+        <View style={[s.lfMyPostBadge, { alignSelf: "flex-start", marginBottom: 8, backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
+          <Text style={[s.lfMyPostBadgeText, { color: "#92400e" }]}>{item.category}</Text>
+        </View>
+        {item.description ? <Text style={s.lfDesc}>{item.description}</Text> : null}
+        <View style={s.lfMetaRow}>
+          <Ionicons name="location-outline" size={13} color="#374151" />
+          <Text style={s.lfLocationText}>Lost at: {item.locationLost}</Text>
+        </View>
+        <View style={s.lfMetaRow}>
+          <Ionicons name="calendar-outline" size={13} color="#374151" />
+          <Text style={s.lfLocationText}>Date: {item.dateLost}</Text>
+        </View>
+        <View style={[s.lfHandedBox, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}>
+          <Ionicons name="call-outline" size={16} color="#92400e" />
+          <Text style={[s.lfHandedName, { color: "#92400e", flex: 1 }]}>{item.howToReach}</Text>
+        </View>
+{showActions && item.isMyPost && (
+  <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+    {item.status !== 'found' && (
+      <TouchableOpacity
+        style={[s.lfHandoverBtn, { flex: 1 }]}
+        onPress={() => handleMarkFound(item.id)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="checkmark-circle-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+        <Text style={s.lfHandoverBtnText}>Mark as Found</Text>
+      </TouchableOpacity>
+    )}
+    <TouchableOpacity
+      style={[s.lfHandoverBtn, { flex: item.status === 'found' ? 0 : 1, backgroundColor: "#ef4444", paddingHorizontal: item.status === 'found' ? 20 : 0 }]}
+      onPress={() => handleDeleteReport(item.id)}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="trash-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+      <Text style={s.lfHandoverBtnText}>Delete</Text>
+    </TouchableOpacity>
+  </View>
+)}
+      </View>
+    </View>
+  );
+
   if (loading) return <View style={s.loader}><ActivityIndicator size="large" color="#16a34a" /></View>;
+
+  const visibleTabs: TabType[] = ["lostreports", "feed", "lost-history", "claims"];
 
   return (
     <View style={s.root}>
@@ -300,23 +481,31 @@ export default function LostAndFoundScreen() {
           <Ionicons name="arrow-back" size={18} color="#0f172a" />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Lost & Found</Text>
-        <TouchableOpacity style={s.addBtn} onPress={() => router.push("/post-found-item" as any)}>
-          <Ionicons name="add" size={22} color="#fff" />
-        </TouchableOpacity>
+        {userRole === "staff" ? (
+          <TouchableOpacity style={s.addBtn} onPress={() => router.push("/post-found-item" as any)}>
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+        <TouchableOpacity style={s.addBtn} onPress={() => router.push("/post-lost-report" as any)}>
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
+
       <View style={s.segmentRow}>
-        {(["feed", "myposts", "claims"] as TabType[]).map((tab) => (
+        {visibleTabs.map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[s.segmentBtn, activeTab === tab && s.segmentBtnActive]}
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[s.segmentBtnText, activeTab === tab && s.segmentBtnTextActive]}>
-              {tab === "feed" ? "All Items" : tab === "myposts" ? "My Posts" : "Claims"}
+              {tab === "lostreports" ? "Lost" : tab === "feed" ? "Found" : tab === "lost-history" ? "Lost History" : "Claims"}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
+
       <ScrollView
         contentContainerStyle={s.container}
         showsVerticalScrollIndicator={false}
@@ -334,18 +523,25 @@ export default function LostAndFoundScreen() {
             </View>
           ) : feedItems.map(renderCard)
         )}
-        {activeTab === "myposts" && (
-          myPosts.length === 0 ? (
-            <View style={s.emptyState}>
-              <View style={s.emptyIconWrap}><Ionicons name="cube-outline" size={36} color="#16a34a" /></View>
-              <Text style={s.emptyTitle}>No posts yet</Text>
-              <Text style={s.emptySub}>Items you post will appear here.</Text>
-              <TouchableOpacity style={s.postBtn} onPress={() => router.push("/post-found-item" as any)}>
-                <Text style={s.postBtnText}>Post Found Item</Text>
-              </TouchableOpacity>
-            </View>
-          ) : myPosts.map(renderCard)
-        )}
+
+{activeTab === "lost-history" && (
+  lostReportsLoading ? (
+    <ActivityIndicator size="large" color="#16a34a" style={{ marginTop: 60 }} />
+  ) : lostReports.length === 0 ? (
+    <View style={s.emptyState}>
+    <View style={s.emptyIconWrap}>
+  <Ionicons name="search-outline" size={36} color="#16a34a" />
+      </View>
+      <Text style={s.emptyTitle}>No lost reports yet</Text>
+      <Text style={s.emptySub}>All lost item reports from campus will appear here.</Text>
+    </View>
+  ) : (
+    <>
+      {lostReports.map(item => renderLostReportCard(item, false))}
+    </>
+  )
+)}
+
         {activeTab === "claims" && (
           claimItems.length === 0 ? (
             <View style={s.emptyState}>
@@ -355,6 +551,36 @@ export default function LostAndFoundScreen() {
             </View>
           ) : claimItems.map(renderClaimCard)
         )}
+
+{activeTab === "lostreports" && (
+  lostReportsLoading ? (
+    <ActivityIndicator size="large" color="#16a34a" style={{ marginTop: 60 }} />
+  ) : userLostReports.length === 0 ? (
+    <View style={s.emptyState}>
+     <View style={s.emptyIconWrap}>
+  <Ionicons name="cube-outline" size={36} color="#16a34a" />
+      </View>
+     <Text style={s.emptyTitle}>{"You haven't reported any lost items"}</Text>
+      <Text style={s.emptySub}>Lost something on campus? Post a report and let others help!</Text>
+      <TouchableOpacity
+          style={[s.postBtn, { backgroundColor: "#16a34a" }]}
+        onPress={() => router.push("/post-lost-report" as any)}
+      >
+        <Text style={s.postBtnText}>+ Post Lost Report</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <>
+      {userLostReports.map(item => renderLostReportCard(item, true))}
+      <TouchableOpacity
+        style={[s.postBtn, { backgroundColor: "#16a34a", alignSelf: "center", marginTop: 8 }]}
+        onPress={() => router.push("/post-lost-report" as any)}
+      >
+        <Text style={s.postBtnText}>+ Post Lost Report</Text>
+      </TouchableOpacity>
+    </>
+  )
+)}
       </ScrollView>
 
       <Modal visible={!!handoverItem} animationType="slide" transparent onRequestClose={() => setHandoverItem(null)}>

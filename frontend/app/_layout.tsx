@@ -227,6 +227,11 @@ export default function RootLayout() {
                   pathname: "/staff-dashboard",
                   params: { openComplaintId: data.complaintId },
                 } as any);
+             } else if (data.itemId && data.type === 'new_lost_report') {
+  router.push({
+    pathname: "/lost-and-found",
+    params: { openTab: "lost-history" },
+  } as any);
               } else if (data.itemId) {
                 router.push({
                   pathname: "/staff-dashboard",
@@ -241,6 +246,11 @@ export default function RootLayout() {
                   pathname: "/",
                   params: { openComplaintId: data.complaintId },
                 } as any);
+           } else if (data.itemId && data.type === 'new_lost_report') {
+  router.push({
+    pathname: "/lost-and-found",
+    params: { openTab: "lost-history" },
+  } as any);
               } else if (data.itemId) {
                 router.push({
                   pathname: "/",
@@ -290,7 +300,8 @@ export default function RootLayout() {
       <Stack.Screen name="my-complaints" />
       <Stack.Screen name="staff-dashboard" />
       <Stack.Screen name="lost-and-found" />
-      <Stack.Screen name="post-found-item" />
+     <Stack.Screen name="post-found-item" />
+      <Stack.Screen name="post-lost-report" />
       <Stack.Screen
         name="terms-and-conditions"
         options={{ headerShown: false }}
