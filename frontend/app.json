@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "UNIFIX",
+    "slug": "unifix",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "unifix",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.unifix.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.unifix.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      ["expo-image-picker", {
+        "cameraPermission": "Allow UniFix to access your camera to upload photos."
+      }]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4d7d0e4b-d763-41e9-833b-843af45047c7"
+      }
+    }
+  }
+}

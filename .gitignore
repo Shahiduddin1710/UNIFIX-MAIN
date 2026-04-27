@@ -1,0 +1,59 @@
+# ======================
+# ENV FILES (CONFIDENTIAL)
+# ======================
+.env
+.env.*
+!.env.example
+
+# ======================
+# FIREBASE / KEYS (CRITICAL)
+# ======================
+serviceAccountKey.json
+frontend/firebase/firebaseConfig.ts
+.firebaserc
+
+# ======================
+# NODE MODULES (ALL LEVELS)
+# ======================
+node_modules/
+**/node_modules/
+
+# ======================
+# LOGS
+# ======================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ======================
+# BUILD / DIST
+# ======================
+dist/
+build/
+.expo/
+.next/
+out/
+
+# ======================
+# OS FILES
+# ======================
+.DS_Store
+Thumbs.db
+
+# ======================
+# EDITOR
+# ======================
+.vscode/
+.idea/
+
+# ======================
+# TYPESCRIPT CACHE
+# ======================
+*.tsbuildinfo
+
+# ======================
+# MISC
+# ======================
+coverage/
