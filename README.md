@@ -3,32 +3,6 @@
 > **Campus Care at Your Fingertips**
 > A full-stack campus management system for handling complaints, maintenance workflows, escalations, and lost & found operations within a college environment.
 
-### Student App
-
-<p align="center">
-  <img src="assets/student.jpeg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/complaint.jpeg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/tracking.jpeg" height="400" />
-</p>
-<p align="center">
-  <img src="assets/lost.jpeg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/found.jpeg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/claims.jpeg" height="400" />
-</p>
-
-### Admin Panel
-
-<p align="center">
-  <img src="assets/admin.png" width="80%" />
-</p>
-<p align="center">
-  <img src="assets/admincomplaint.png" width="80%" />
-</p>
-
 ## Features
 
 ### Authentication
@@ -290,6 +264,32 @@ Mobile App / Admin Panel
 | admin   | Full system control (web panel) |
 
 ---
+
+### Student App
+
+<p align="center">
+  <img src="assets/student.jpeg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/complaint.jpeg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/tracking.jpeg" height="400" />
+</p>
+<p align="center">
+  <img src="assets/lost.jpeg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/found.jpeg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/claims.jpeg" height="400" />
+</p>
+
+### Admin Panel
+
+<p align="center">
+  <img src="assets/admin.png" width="80%" />
+</p>
+<p align="center">
+  <img src="assets/admincomplaint.png" width="80%" />
+</p>
 
 ## Author
 
