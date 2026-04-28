@@ -9,25 +9,32 @@
 
 ### Student App
 
-| Home | Complaints | Tracking |
-|------|------------|----------|
-| ![Home](assets/student.jpeg) | ![Complaints](assets/complaint.jpeg) | ![Tracking](assets/tracking.jpeg) |
-
-| Lost & Found Feed | Found Items | Claims |
-|-------------------|-------------|--------|
-| ![Lost](assets/lost.jpeg) | ![Found](assets/found.jpeg) | ![Claims](assets/claims.jpeg) |
-
-| Profile |
-|---------|
-| ![Profile](assets/profile.jpeg) |
+<p align="center">
+  <img src="assets/student.jpeg" width="30%" />
+  &nbsp;&nbsp;
+  <img src="assets/complaint.jpeg" width="30%" />
+  &nbsp;&nbsp;
+  <img src="assets/tracking.jpeg" width="30%" />
+</p>
+<p align="center">
+  <img src="assets/lost.jpeg" width="30%" />
+  &nbsp;&nbsp;
+  <img src="assets/found.jpeg" width="30%" />
+  &nbsp;&nbsp;
+  <img src="assets/claims.jpeg" width="30%" />
+</p>
+<p align="center">
+  <img src="assets/userprofile.jpeg" width="30%" />
+</p>
 
 ### Admin Panel
 
-![Admin Dashboard](assets/admin.png)
-
-![Admin Complaints](assets/admincomplaint.png)
-
----
+<p align="center">
+  <img src="assets/admin.png" width="80%" />
+</p>
+<p align="center">
+  <img src="assets/admincomplaint.png" width="80%" />
+</p>
 
 ## Features
 
