@@ -19,8 +19,14 @@
   &nbsp;&nbsp;&nbsp;
   <img src="assets/claims.jpeg" height="400" />
 </p>
+
+### Admin Panel
+
 <p align="center">
-  <img src="assets/userprofile.jpeg" height="400" />
+  <img src="assets/admin.png" width="80%" />
+</p>
+<p align="center">
+  <img src="assets/admincomplaint.png" width="80%" />
 </p>
 
 ## Features
