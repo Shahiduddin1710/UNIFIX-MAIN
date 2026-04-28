@@ -295,7 +295,6 @@ Mobile App / Admin Panel
 
 **Shahiduddin**
 Email: shahiduddin153@gmail.com
-GitHub: [Shahiduddin1710](https://github.com/Shahiduddin1710)
 
 ---
 
