@@ -131,7 +131,7 @@ EXPO_PUBLIC_BASE_URL=http://YOUR_IP:3000
 #### Admin (`admin/.env`)
 
 ```env
-REACT_APP_API_URL=http://YOUR_IP:3000
+VITE_API_URL=http://YOUR_IP:3000
 ```
 
 #### Backend (`backend/.env`)
