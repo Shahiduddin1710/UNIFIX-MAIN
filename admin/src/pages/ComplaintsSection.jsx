@@ -141,8 +141,7 @@ export function ComplaintModal({ complaint, onClose }) {
               <div key={panel.title} className="bg-[#f9fafb] rounded-[12px] p-[15px]">
                 <div className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-[0.6px] mb-[12px]">{panel.title}</div>
                 <div className="flex flex-col gap-[8px]">
-                  {panel.rows.map(([k, v]) => <div key={k} className="flex justify-between gap-[8px]"><span className="text-[12px] text-[#94a3b8] font-medium shrink-0">{k}</span><span className="text-[12px] text-[#374151] font-semibold text-right break-words">{v || '—'}</span></div>)}
-                </div>
+{panel.rows.map(([k, v]) => <div key={k} className="flex justify-between gap-[8px]"><span className="text-[12px] text-[#94a3b8] font-medium shrink-0">{k}</span><span className="text-[12px] text-[#374151] font-semibold text-right break-all min-w-0">{v || '—'}</span></div>)}                </div>
               </div>
             ))}
           </div>

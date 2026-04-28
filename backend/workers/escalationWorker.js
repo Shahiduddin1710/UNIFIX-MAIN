@@ -6,6 +6,7 @@ const logger = require('../services/logger');
 const worker = new Worker(
   'escalation',
   async (job) => {
+    logger.info(`[Worker] Job received: ${job.name} for ${job.data.complaintId}`);
     const { complaintId } = job.data;
     const db = admin.firestore();
     const ref = db.collection('complaints').doc(complaintId);
@@ -76,5 +77,7 @@ const worker = new Worker(
 
 worker.on('completed', (job) => logger.info(`[Worker] Job ${job.id} completed`));
 worker.on('failed', (job, err) => logger.error(`[Worker] Job ${job.id} failed: ${err.message}`));
+worker.on('error', (err) => logger.error(`[Worker] Worker error: ${err.message}`));
+worker.on('active', (job) => logger.info(`[Worker] Job active: ${job.id} - ${job.name}`));
 
-module.exports = worker;
+module.exports = worker;  

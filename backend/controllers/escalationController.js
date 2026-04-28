@@ -2,38 +2,7 @@ const admin = require('../config/firebase');
 const { sendSuccess, sendError } = require('../utils/response');
 const { getTransporter } = require('../config/nodemailer');
 const logger = require('../services/logger');
-
-const ESCALATION_LIMITS = {
-  cleaning: 1 * 60 * 1000,
-  housekeeping: 1 * 60 * 1000,
-  washroom: 1 * 60 * 1000,
-  electrical: 1 * 60 * 1000,
-  plumbing: 1 * 60 * 1000,
-  civil: 1 * 60 * 1000,
-  carpentry: 1 * 60 * 1000,
-  technician: 1 * 60 * 1000,
-  'it / technical': 1 * 60 * 1000,
-  lab: 1 * 60 * 1000,
-  safety: 1 * 60 * 1000,
-  others: 1 * 60 * 1000,
-};
-
-const NO_ACCEPTANCE_LIMITS = {
-  cleaning: 1 * 60 * 1000,
-  housekeeping: 1 * 60 * 1000,
-  washroom: 1 * 60 * 1000,
-  electrical: 1 * 60 * 1000,
-  plumbing: 1 * 60 * 1000,
-  civil: 1 * 60 * 1000,
-  carpentry: 1 * 60 * 1000,
-  technician: 1 * 60 * 1000,
-  'it / technical': 1 * 60 * 1000,
-  lab: 1 * 60 * 1000,
-  safety: 1 * 60 * 1000,
-  others: 1 * 60 * 1000,
-};
-
-const HOD_EMAIL_DELAY = 20 * 1000;
+const { ESCALATION_LIMITS, NO_ACCEPTANCE_LIMITS, HOD_EMAIL_DELAY } = require('../config/escalationLimits');
 
 function capitalize(str) {
   if (!str) return '';
