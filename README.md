@@ -1,7 +1,18 @@
 # UniFiX: Campus Complaint Management System
 
+## Download the App
+
+Visit our website to download the latest UniFiX APK:
+
+🌐 **https://unifixapp.vercel.app**
+
+> Download the Android APK directly from the website and start using UniFiX on your device.
+
+---
+
 > **Campus Care at Your Fingertips**
 > A full-stack campus management system for handling complaints, maintenance workflows, escalations, and lost & found operations within a college environment.
+
 
 ## Features
 
