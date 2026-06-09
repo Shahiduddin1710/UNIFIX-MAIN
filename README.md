@@ -1,4 +1,4 @@
-# UniFiX — Campus Complaint Management System
+# UniFiX: Campus Complaint Management System
 
 > **Campus Care at Your Fingertips**
 > A full-stack campus management system for handling complaints, maintenance workflows, escalations, and lost & found operations within a college environment.
