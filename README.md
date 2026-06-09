@@ -46,7 +46,6 @@
 - Stale FCM tokens automatically cleaned from Firestore on send failure
 
 ### Admin Panel (Web)
-- JWT-based admin authentication (separate from Firebase)
 - Staff approval / rejection
 - Complaint monitoring with flagged/HOD indicators
 - Complaint detail modal with full reporter info, progress tracker, assignment
@@ -57,7 +56,6 @@
 - History and overview dashboards
 
 ### Performance & Stability
-- Firestore real-time listeners kept only where necessary (admin dashboard, staff dashboard, single complaint tracking modal)
 - Student complaint list, Lost & Found feed, and claims use REST (not real-time)
 - `hasFetchedRef` guard prevents repeated Firestore reads on Firebase auth token refresh (~every 60 min)
 - Global skeleton loading system with per-screen skeleton types (dashboard, task, list)
