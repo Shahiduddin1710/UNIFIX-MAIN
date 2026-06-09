@@ -1,0 +1,62 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependency directories
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+build/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Local files
+*.local
+
+# Cache
+.vite/
+.cache/
+.eslintcache
+
+# Coverage
+coverage/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# OS files
+Desktop.ini
+
+# TypeScript
+*.tsbuildinfo
+
+# Package manager
+.pnp
+.pnp.js
+
+# Netlify
+.netlify
+
+# Vercel
+.vercel
+
+# Firebase
+.firebase/
+
+# Temporary files
+tmp/
+temp/

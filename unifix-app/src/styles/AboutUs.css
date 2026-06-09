@@ -1,0 +1,362 @@
+.about-page * {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+.about-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+.about-page > footer {
+  margin-top: auto;
+}
+
+@media (max-width: 900px) {
+  .about-page {
+    min-height: 100dvh;
+  }
+}
+.about-hero {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  max-width: 1100px;
+  margin: 64px auto 0;
+  padding: 0 48px 80px;
+  min-height: 480px;
+}
+
+.about-hero-text {
+  flex: 0 0 440px;
+  max-width: 440px;
+}
+
+.about-hero-title {
+  font-size: 38px;
+  font-weight: 400;
+  color: #0f172a;
+  line-height: 1.2;
+  margin-bottom: 32px;
+  letter-spacing: -0.5px;
+}
+
+.about-hero-title strong {
+  font-weight: 800;
+  display: block;
+}
+
+.about-hero-block {
+  margin-bottom: 28px;
+}
+
+.about-hero-lead {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.about-hero-body {
+  font-size: 14.5px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.about-hero-body strong {
+  color: #16a34a;
+}
+
+.about-hero-visual {
+  position: relative;
+  flex: 0 0 480px;
+  width: 480px;
+  height: 460px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.about-blob-bg {
+  position: absolute;
+  top: -20px;
+  right: -40px;
+  width: 110%;
+  height: 110%;
+  background: #f0fdf4;
+  border-radius: 55% 45% 60% 40% / 45% 55% 45% 55%;
+  z-index: 0;
+}
+
+.about-pill {
+  position: absolute;
+  left: 12px;
+  bottom: 56px;
+  width: 18px;
+  height: 80px;
+  background: #16a34a;
+  border-radius: 40px;
+  z-index: 2;
+}
+
+.about-hero-img {
+  position: relative;
+  z-index: 1;
+  width: 88%;
+  height: 88%;
+  object-fit: cover;
+  object-position: center 20%;
+  border-radius: 28px;
+  box-shadow: none;
+  margin-left: auto;
+}
+
+.about-small-circle {
+  display: none;
+}
+
+.about-champions {
+  display: flex;
+  align-items: flex-start;
+  gap: 48px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 48px 48px 72px;
+}
+.about-champions-left {
+  flex: 1;
+  max-width: 500px;
+}
+
+.about-champions-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 10px;
+}
+
+.about-champions-accent {
+  width: 40px;
+  height: 4px;
+  background: #16a34a;
+  border-radius: 2px;
+  margin-bottom: 20px;
+}
+
+.about-champions-body {
+  font-size: 14.5px;
+  color: #64748b;
+  line-height: 1.75;
+  margin-bottom: 14px;
+}
+
+.about-team-grid {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding-top: 8px;
+}
+
+.about-team-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 90px;
+}
+
+.about-team-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.25);
+  border: 3px solid #f0fdf4;
+}
+
+.about-team-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: center;
+}
+
+.about-team-role {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .about-hero,
+  .about-champions {
+    flex-direction: column;
+    padding: 0 20px 48px;
+    margin-top: 32px;
+    gap: 28px;
+  }
+
+  .about-hero-text,
+  .about-champions-left {
+    max-width: 100%;
+  }
+
+  .about-hero-visual {
+    max-width: 100%;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    max-height: 400px;
+  }
+
+  .about-hero-title {
+    font-size: 28px;
+  }
+
+.about-champions {
+    padding: 32px 20px 48px;
+  }
+
+  .about-team-grid {
+    justify-content: center;
+  }
+  
+  .about-blob-bg {
+    width: 100%;
+    height: 100%;
+    top: 0;
+    right: 0;
+  }
+  
+  .about-hero-img {
+    width: 85%;
+    height: 85%;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .about-hero-visual {
+    max-width: 100%;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    max-height: 320px;
+  }
+  
+  .about-hero-img {
+    width: 90%;
+    height: 90%;
+  }
+  
+  .about-pill {
+    left: 8px;
+    bottom: 40px;
+    width: 14px;
+    height: 60px;
+  }
+}
+
+@media (max-width: 1024px) and (min-width: 769px) {
+  .tnc-footer-top {
+    flex-wrap: wrap;
+    gap: 40px;
+    justify-content: space-between;
+  }
+
+  .tnc-footer-links-group {
+    min-width: 140px;
+  }
+
+  .tnc-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .tnc-footer {
+    padding: 40px 24px 32px;
+  }
+
+  .tnc-footer-top {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .tnc-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tnc-footer {
+    padding: 32px 16px 24px;
+  }
+
+  .tnc-footer-brand-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .tnc-footer-brand-name {
+    font-size: 16px;
+  }
+
+  .tnc-footer-tagline {
+    font-size: 11px;
+  }
+
+  .tnc-footer-links-group h4 {
+    font-size: 11px;
+  }
+
+  .tnc-footer-links-group ul li a {
+    font-size: 12px;
+  }
+
+  .tnc-footer-copy,
+  .tnc-footer-version {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .tnc-footer-top {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px 24px;
+  }
+
+  .tnc-footer-top > div:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .tnc-footer-top {
+    grid-template-columns: 1fr;
+  }
+
+  .tnc-footer-top > div:first-child {
+    grid-column: auto;
+  }
+}
