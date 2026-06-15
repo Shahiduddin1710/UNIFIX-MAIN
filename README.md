@@ -278,6 +278,52 @@ npm run dev
 
 ---
 
+### Student App
+
+<p align="center">
+  <img src="assets/student-dashboard.jpg" height="380" />&nbsp;
+  <img src="assets/student-profile.jpg" height="380" />&nbsp;
+  <img src="assets/student-complaint.jpg" height="380" />&nbsp;
+  <img src="assets/student-claims.jpg" height="380" />
+</p>
+
+<p align="center">
+  <img src="assets/student-history.jpg" height="380" />&nbsp;
+  <img src="assets/student-found.jpg" height="380" />&nbsp;
+  <img src="assets/student-lost.jpg" height="380" />&nbsp;
+  <img src="assets/student-report.jpg" height="380" />
+</p>
+
+---
+
+### Staff App
+
+<p align="center">
+  <img src="assets/staff-dashboard.jpg" height="380" />&nbsp;
+  <img src="assets/staff-profile.jpg" height="380" />&nbsp;
+  <img src="assets/staff-history.jpg" height="380" />&nbsp;
+  <img src="assets/staff-found.jpg" height="380" />
+</p>
+
+---
+
+### Admin Mobile
+
+<p align="center">
+  <img src="assets/admin-home.jpg" height="380" />&nbsp;
+  <img src="assets/admin-profile.jpg" height="380" />&nbsp;
+  <img src="assets/admin-complaint.jpg" height="380" />&nbsp;
+  <img src="assets/admin-history.jpg" height="380" />
+</p>
+
+---
+
+### Admin Web
+
+<p align="center">
+  <img src="assets/admin.png" width="100%" />
+</p>
+
 ## Important Notes
 
 - Ensure mobile and backend are on the **same network**
@@ -293,65 +339,6 @@ npm run dev
 
 ---
 
-### Student App
-
-<p align="center">
-  <img src="assets/student-dashboard.jpg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/student-profile.jpg" height="400" />
-</p>
-
-<p align="center">
-  <img src="assets/student-complaint.jpg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/student-claims.jpg" height="400" />
-</p>
-
-<p align="center">
-  <img src="assets/student-history.jpg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/student-found.jpg" height="400" />
-</p>
-
-<p align="center">
-  <img src="assets/student-lost.jpg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/student-report.jpg" height="400" />
-</p>
-
-### Staff App
-
-<p align="center">
-  <img src="assets/staff-dashboard.jpg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/staff-profile.jpg" height="400" />
-</p>
-
-<p align="center">
-  <img src="assets/staff-history.jpg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/staff-found.jpg" height="400" />
-</p>
-
-### Admin Mobile
-
-<p align="center">
-  <img src="assets/admin-home.jpg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/admin-profile.jpg" height="400" />
-</p>
-
-<p align="center">
-  <img src="assets/admin-complaint.jpg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/admin-history.jpg" height="400" />
-</p>
-
-### Admin Web
-
-<p align="center">
-  <img src="assets/admin.png" height="400" />
-</p>
 ## Author
 
 **Shahiduddin**
