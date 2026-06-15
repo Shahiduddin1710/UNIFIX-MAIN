@@ -299,7 +299,7 @@ npm run dev
 ### Staff App
 
 <p align="center">
-  <img src="assets/staff-dashboard.jpg" height="380" />&nbsp;
+  <img src="assets/staff-dashboard.jpeg" height="380" />&nbsp;
   <img src="assets/staff-profile.jpg" height="380" />&nbsp;
   <img src="assets/staff-history.jpg" height="380" />&nbsp;
   <img src="assets/staff-found.jpg" height="380" />
