@@ -311,9 +311,9 @@ npm run dev
 
 <p align="center">
   <img src="assets/admin-home.jpg" height="380" />&nbsp;
-  <img src="assets/admin-profile.jpg" height="380" />&nbsp;
   <img src="assets/admin-complaint.jpg" height="380" />&nbsp;
   <img src="assets/admin-history.jpg" height="380" />
+   <img src="assets/admin-profile.jpg" height="380" />&nbsp;
 </p>
 
 ---
