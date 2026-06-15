@@ -139,7 +139,7 @@ Mobile App / Admin Panel
 | student | Submit & track complaints, Lost & Found |
 | teacher | Submit & track complaints, Lost & Found |
 | staff   | Manage assigned complaints, Lost & Found posts |
-| admin   | Full system control (web panel) |
+| admin   | Full system control (web panel) and mobile |
 
 ---
 
