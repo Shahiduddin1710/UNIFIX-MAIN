@@ -282,16 +282,16 @@ npm run dev
 
 <p align="center">
   <img src="assets/student-dashboard.jpg" height="380" />&nbsp;
-  <img src="assets/student-profile.jpg" height="380" />&nbsp;
-  <img src="assets/student-complaint.jpg" height="380" />&nbsp;
-  <img src="assets/student-claims.jpg" height="380" />
+  <img src="assets/student-report.jpg" height="380" />&nbsp;
+  <img src="assets/student-lost.jpg" height="380" />&nbsp;
+  <img src="assets/student-found.jpg" height="380" />
 </p>
 
 <p align="center">
+  <img src="assets/student-claims.jpg" height="380" />&nbsp;
   <img src="assets/student-history.jpg" height="380" />&nbsp;
-  <img src="assets/student-found.jpg" height="380" />&nbsp;
-  <img src="assets/student-lost.jpg" height="380" />&nbsp;
-  <img src="assets/student-report.jpg" height="380" />
+  <img src="assets/student-complaint.jpg" height="380" />&nbsp;
+  <img src="assets/student-profile.jpg" height="380" />
 </p>
 
 ---
