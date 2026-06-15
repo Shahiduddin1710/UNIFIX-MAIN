@@ -89,7 +89,6 @@ Visit our website to download the latest UniFiX APK:
 | Lost & Found feed | ✅ | Hash-based full sync |
 | Lost reports | ✅ | Hash-based full sync |
 | Claims | ✅ | Hash-based full sync |
-| Admin management screens | ❌ | Direct fetch (sensitive, rare) |
 
 ---
 
