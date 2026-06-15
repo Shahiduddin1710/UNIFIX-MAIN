@@ -20,7 +20,7 @@ Visit our website to download the latest UniFiX APK:
 - Firebase Authentication (Email/Password)
 - OTP-based signup verification
 - Password reset with OTP
-- Secure token-based API access (Firebase ID token for mobile, JWT for admin panel)
+- Secure token-based API access (Firebase ID token for all roles — student, staff, admin)
 
 ### Complaint System
 - Submit complaints with category, location, and optional photo
@@ -73,6 +73,24 @@ Visit our website to download the latest UniFiX APK:
 - Minimum 300ms skeleton display to prevent flicker
 - Redis error spam suppressed for `ECONNRESET` / `ENOTFOUND`
 
+### Offline-First Architecture (SQLite)
+- All dynamic data cached locally using **Expo SQLite** with WAL mode
+- **Hash-based incremental sync** — server computes MD5 hash of data; client sends current hash; fetch only happens when hash mismatches (~90% reduction in Firestore reads)
+- SQLite tables: `complaints`, `lostfound_items`, `lost_reports`, `claims`, `metadata`
+- On app open → SQLite read is instant (no loading screen if cache exists)
+- On app resume → silent background sync, UI updates only if data changed
+- Sync coverage:
+
+| Data | SQLite Cached | Sync Strategy |
+|------|--------------|---------------|
+| Student complaints | ✅ | Hash + delta since last sync |
+| Staff complaints | ✅ | Hash + delta since last sync |
+| Admin complaints | ✅ | Hash + delta since last sync |
+| Lost & Found feed | ✅ | Hash-based full sync |
+| Lost reports | ✅ | Hash-based full sync |
+| Claims | ✅ | Hash-based full sync |
+| Admin management screens | ❌ | Direct fetch (sensitive, rare) |
+
 ---
 
 ## Tech Stack
@@ -82,13 +100,15 @@ Visit our website to download the latest UniFiX APK:
 | Mobile App   | React Native (Expo), TypeScript     |
 | Backend      | Node.js, Express                    |
 | Database     | Firebase Firestore                  |
-| Auth         | Firebase Authentication + JWT (admin) |
+| Auth         | Firebase Authentication (Firebase ID token for all roles) |
 | Admin Panel  | React.js (Vite)                     |
 | Image Upload | Cloudinary                          |
 | Email        | Nodemailer (Gmail SMTP)             |
 | Push Notifications | Expo FCM                      |
 | Job Queue    | BullMQ + Redis                      |
 | State (Mobile) | Zustand                           |
+| Local Cache    | Expo SQLite (offline-first)       |
+| Sync Strategy  | Hash-based incremental sync       |
 
 ---
 
@@ -124,32 +144,214 @@ Mobile App / Admin Panel
 
 ---
 
-### Student App
+---
 
-<p align="center">
-  <img src="assets/student.jpeg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/complaint.jpeg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/tracking.jpeg" height="400" />
-</p>
-<p align="center">
-  <img src="assets/lost.jpeg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/found.jpeg" height="400" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/claims.jpeg" height="400" />
-</p>
+## Setup Instructions
+
+### 1. Clone Repository
+
+```bash
+git clone https://github.com/Shahiduddin1710/UNIFIX-MAIN.git
+cd UNIFIX-MAIN
+```
+
+### 2. Install Dependencies
+
+```bash
+cd frontend && npm install
+cd ../backend && npm install
+cd ../admin && npm install
+```
+
+### 3. Install firebaseConfig.ts (Mobile)
+
+
+You don't "download" `firebaseConfig.ts` — you **create it manually** from your Firebase Console.
+
+---
+
+**Step 1** — Go to [Firebase Console](https://console.firebase.google.com)
+
+**Step 2** — Select your project → **Project Settings** (gear icon)
+
+**Step 3** — Scroll down to **"Your apps"** → select your Android/Web app → copy the config
+
+**Step 4** — Create file `frontend/firebase/firebaseConfig.ts` and paste:
+
+```ts
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: "your-api-key",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id",
+};
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+```
+
+**Step 5** — Replace all `"your-..."` values with your actual Firebase config values.
+
+
+```
+
+---
+
+### 4. Environment Variables
+
+#### Frontend (`frontend/.env`)
+
+```env
+EXPO_PUBLIC_BASE_URL=http://YOUR_IP:3000
+```
+
+#### Admin (`admin/.env`)
+
+```env
+VITE_API_URL=http://YOUR_IP:3000
+```
+
+#### Backend (`backend/.env`)
+
+```env
+PORT=port no.
+FIREBASE_DATABASE_URL=
+FIREBASE_STORAGE_BUCKET=
+FIREBASE_API_KEY=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_UPLOAD_PRESET=
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+HELPDESK_EMAIL=unifix.
+HOD_EMAIL=
+CRON_SECRET=
+SENTRY_DSN=
+REDIS_URL=
+```
+
+---
+
+## Firebase Setup
+
+1. Create a Firebase project
+2. Enable:
+   - Authentication (Email/Password)
+   - Firestore Database
+3. Generate a Service Account Key
+4. Place the file at:
+
+```
+backend/serviceAccountKey.json
+```
+
+---
+
+## Run the Project
+
+### Backend
+
+```bash
+cd backend
+node server.js
+```
+
+### Frontend
+
+```bash
+cd frontend
+npx expo start
+```
 
 ### Admin Panel
 
+```bash
+cd admin
+npm run dev
+```
+
+---
+
+## Important Notes
+
+- Ensure mobile and backend are on the **same network**
+- Update the IP address in `.env` when WiFi changes
+- Restart Expo after changing `.env`
+- The `hasFetchedRef` guard in `index.tsx` and `my-complaints.tsx` is critical — do not revert it
+- `lost-and-found.tsx` intentionally keeps `onSnapshot` (dedicated real-time feed)
+- `staff-dashboard.tsx` intentionally keeps `onSnapshot` (staff needs real-time task alerts)
+- Admin dashboard intentionally keeps all `onSnapshot` (admin needs real-time oversight)
+- SQLite schema migrations are handled via `migrateComplaintsTable()` in `db/database.ts` — do not remove
+- Hash keys are stored in the `metadata` SQLite table — clearing them forces a full re-sync
+- To force a full re-sync for any module, call `setMeta('<hash_key>', '')` before syncing
+
+---
+
+### Student App
+
 <p align="center">
-  <img src="assets/admin.png" width="80%" />
-</p>
-<p align="center">
-  <img src="assets/admincomplaint.png" width="80%" />
+  <img src="assets/student-dashboard.jpg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/student-profile.jpg" height="400" />
 </p>
 
+<p align="center">
+  <img src="assets/student-complaint.jpg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/student-claims.jpg" height="400" />
+</p>
+
+<p align="center">
+  <img src="assets/student-history.jpg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/student-found.jpg" height="400" />
+</p>
+
+<p align="center">
+  <img src="assets/student-lost.jpg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/student-report.jpg" height="400" />
+</p>
+
+### Staff App
+
+<p align="center">
+  <img src="assets/staff-dashboard.jpg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/staff-profile.jpg" height="400" />
+</p>
+
+<p align="center">
+  <img src="assets/staff-history.jpg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/staff-found.jpg" height="400" />
+</p>
+
+### Admin Mobile
+
+<p align="center">
+  <img src="assets/admin-home.jpg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/admin-profile.jpg" height="400" />
+</p>
+
+<p align="center">
+  <img src="assets/admin-complaint.jpg" height="400" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/admin-history.jpg" height="400" />
+</p>
+
+### Admin Web
+
+<p align="center">
+  <img src="assets/admin.png" height="400" />
+</p>
 ## Author
 
 **Shahiduddin**
