@@ -288,8 +288,8 @@ npm run dev
 </p>
 
 <p align="center">
-  <img src="assets/student-claims.jpg" height="380" />&nbsp;
   <img src="assets/student-history.jpg" height="380" />&nbsp;
+  <img src="assets/student-claims.jpg" height="380" />&nbsp;
   <img src="assets/student-complaint.jpg" height="380" />&nbsp;
   <img src="assets/student-profile.jpg" height="380" />
 </p>
