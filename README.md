@@ -20,13 +20,13 @@ Visit our website to download the latest UniFiX APK:
 - Firebase Authentication (Email/Password)
 - OTP-based signup verification
 - Password reset with OTP
-- Secure token-based API access (Firebase ID token for all roles — student, staff, admin)
+- Secure token-based API access (Firebase ID token for all roles student, staff, admin)
 
 ### Complaint System
 - Submit complaints with category, location, and optional photo
 - Auto-assignment to available staff based on category
 - Status tracking: `pending → assigned → in_progress → completed`
-- Rejection system — staff can reject; complaint stays pending until all assigned staff reject
+- Rejection system, staff can reject; complaint stays pending until all assigned staff reject
 - Complaint rating system (disabled when admin resolves directly)
 - Time restrictions: complaints can only be submitted between **8 AM – 8 PM IST**
 
@@ -75,7 +75,7 @@ Visit our website to download the latest UniFiX APK:
 
 ### Offline-First Architecture (SQLite)
 - All dynamic data cached locally using **Expo SQLite** with WAL mode
-- **Hash-based incremental sync** — server computes MD5 hash of data; client sends current hash; fetch only happens when hash mismatches (~90% reduction in Firestore reads)
+- **Hash-based incremental sync** server computes MD5 hash of data; client sends current hash; fetch only happens when hash mismatches (~90% reduction in Firestore reads)
 - SQLite tables: `complaints`, `lostfound_items`, `lost_reports`, `claims`, `metadata`
 - On app open → SQLite read is instant (no loading screen if cache exists)
 - On app resume → silent background sync, UI updates only if data changed
@@ -166,17 +166,17 @@ cd ../admin && npm install
 ### 3. Install firebaseConfig.ts (Mobile)
 
 
-You don't "download" `firebaseConfig.ts` — you **create it manually** from your Firebase Console.
+You don't "download" `firebaseConfig.ts`, you **create it manually** from your Firebase Console.
 
 ---
 
-**Step 1** — Go to [Firebase Console](https://console.firebase.google.com)
+**Step 1** : Go to [Firebase Console](https://console.firebase.google.com)
 
-**Step 2** — Select your project → **Project Settings** (gear icon)
+**Step 2** : Select your project → **Project Settings** (gear icon)
 
-**Step 3** — Scroll down to **"Your apps"** → select your Android/Web app → copy the config
+**Step 3** : Scroll down to **"Your apps"** → select your Android/Web app → copy the config
 
-**Step 4** — Create file `frontend/firebase/firebaseConfig.ts` and paste:
+**Step 4** : Create file `frontend/firebase/firebaseConfig.ts` and paste:
 
 ```ts
 import { initializeApp } from "firebase/app";
@@ -197,7 +197,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 ```
 
-**Step 5** — Replace all `"your-..."` values with your actual Firebase config values.
+**Step 5** : Replace all `"your-..."` values with your actual Firebase config values.
 
 
 ```
@@ -329,12 +329,12 @@ npm run dev
 - Ensure mobile and backend are on the **same network**
 - Update the IP address in `.env` when WiFi changes
 - Restart Expo after changing `.env`
-- The `hasFetchedRef` guard in `index.tsx` and `my-complaints.tsx` is critical — do not revert it
+- The `hasFetchedRef` guard in `index.tsx` and `my-complaints.tsx` is critical, do not revert it
 - `lost-and-found.tsx` intentionally keeps `onSnapshot` (dedicated real-time feed)
 - `staff-dashboard.tsx` intentionally keeps `onSnapshot` (staff needs real-time task alerts)
 - Admin dashboard intentionally keeps all `onSnapshot` (admin needs real-time oversight)
-- SQLite schema migrations are handled via `migrateComplaintsTable()` in `db/database.ts` — do not remove
-- Hash keys are stored in the `metadata` SQLite table — clearing them forces a full re-sync
+- SQLite schema migrations are handled via `migrateComplaintsTable()` in `db/database.ts`,do not remove
+- Hash keys are stored in the `metadata` SQLite table, clearing them forces a full re-sync
 - To force a full re-sync for any module, call `setMeta('<hash_key>', '')` before syncing
 
 ---
