@@ -63,17 +63,7 @@ export default function Navbar() {
             Contact Us
           </Link>
         </li>
-        <li>
-          <a
-            href="https://expo.dev/accounts/unifix-official/projects/unifix/builds/9cd6afe0-5162-4322-ac34-81bfc7db8174"
-            className="tnc-navbar-btn"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={closeMenu}
-          >
-            Download App
-          </a>
-        </li>
+
       </ul>
     </nav>
   );

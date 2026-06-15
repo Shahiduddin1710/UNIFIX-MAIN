@@ -6,6 +6,7 @@ import ContactUs from './pages/ContactUs';
 import Home from './pages/Home';
 import GrievanceRedressal from './pages/GrievanceRedressal';
 import CopyrightPolicy from './pages/CopyrightPolicy';
+import BuildDownload from './pages/BuildDownload';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/contact" element={<ContactUs />} />
         <Route path="/grievance" element={<GrievanceRedressal />} />
         <Route path="/copyright" element={<CopyrightPolicy />} />
+        <Route path="/download" element={<BuildDownload />} />
       </Routes>
     </BrowserRouter>
   );

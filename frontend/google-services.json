@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "855341107379",
+    "firebase_url": "https://unifix-ac990-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "unifix-ac990",
+    "storage_bucket": "unifix-ac990.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:855341107379:android:90c836abcb39f9de5188c6",
+        "android_client_info": {
+          "package_name": "com.unifix.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCro2vWXxLIa8FXXhWm8b6D9WSIOJfW0S0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

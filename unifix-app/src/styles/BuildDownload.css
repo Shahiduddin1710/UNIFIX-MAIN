@@ -1,0 +1,328 @@
+.build-page {
+  background-color: #f8fafc;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+.build-page > footer {
+  margin-top: auto;
+}
+
+.build-container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+.build-card {
+  background-color: #ffffff;
+  border-radius: 24px;
+  border: 1px solid #e2e8f0;
+  padding: 32px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.build-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.build-icon {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2);
+  transition: transform 0.3s ease;
+}
+
+.build-card:hover .build-icon {
+  transform: scale(1.05);
+}
+
+.build-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.build-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.build-details {
+  background-color: #f8fafc;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 28px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #e2e8f0;
+  transition: background-color 0.2s ease;
+}
+
+.detail-row:hover {
+  background-color: #f1f5f9;
+  margin: 0 -8px;
+  padding: 10px 8px;
+  border-radius: 8px;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.3px;
+}
+
+.detail-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.detail-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #16a34a;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.build-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.btn-install {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: #16a34a;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 36px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  min-width: 200px;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-install::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-install:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-install:hover {
+  background-color: #15803d;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.3);
+}
+
+.btn-install:active {
+  transform: translateY(0);
+}
+
+.btn-install.downloading {
+  background-color: #94a3b8;
+  cursor: wait;
+  transform: none;
+}
+
+.btn-install.complete {
+  background-color: #22c55e;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.build-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background-color: #fefce8;
+  border: 1px solid #fef08a;
+  border-radius: 12px;
+  padding: 14px 16px;
+  transition: all 0.3s ease;
+}
+
+.build-note:hover {
+  background-color: #fef9c3;
+  transform: translateY(-2px);
+}
+
+.build-note svg {
+  color: #eab308;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.build-note-content {
+  flex: 1;
+}
+
+.build-note-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #854d0e;
+  margin: 0 0 4px 0;
+}
+
+.build-note-text {
+  font-size: 12px;
+  color: #854d0e;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.build-note-text strong {
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .build-container {
+    padding: 32px 16px 60px;
+  }
+
+  .build-card {
+    padding: 24px;
+  }
+
+  .build-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .build-title {
+    font-size: 18px;
+  }
+
+  .build-subtitle {
+    font-size: 13px;
+  }
+
+  .build-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .btn-install {
+    padding: 12px 28px;
+    min-width: 180px;
+    font-size: 14px;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .detail-row:hover {
+    margin: 0;
+    padding: 10px 0;
+  }
+
+  .build-note {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .build-note svg {
+    margin-top: 0;
+  }
+}
