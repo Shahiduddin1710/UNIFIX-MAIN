@@ -81,14 +81,14 @@ Visit our website to download the latest UniFiX APK:
 - On app resume → silent background sync, UI updates only if data changed
 - Sync coverage:
 
-| Data | SQLite Cached | Sync Strategy |
-|------|--------------|---------------|
-| Student complaints | ✅ | Hash + delta since last sync |
-| Staff complaints | ✅ | Hash + delta since last sync |
-| Admin complaints | ✅ | Hash + delta since last sync |
-| Lost & Found feed | ✅ | Hash-based full sync |
-| Lost reports | ✅ | Hash-based full sync |
-| Claims | ✅ | Hash-based full sync |
+| Data | Sync Strategy |
+|------|---------------|
+| Student complaints | Hash + delta since last sync |
+| Staff complaints | Hash + delta since last sync |
+| Admin complaints | Hash + delta since last sync |
+| Lost & Found feed | Hash-based full sync |
+| Lost reports | Hash-based full sync |
+| Claims | Hash-based full sync |
 
 ---
 
